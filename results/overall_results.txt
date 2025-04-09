@@ -1,0 +1,23 @@
+----------------------------------
+
+Phase I
+
+PR-AUC   mean: 0.5552 std: 0.0152
+F1       mean: 0.7009 std: 0.0136
+ROC-AUC  mean: 0.5629 std: 0.0175
+
+----------------------------------
+
+Phase II
+
+PR-AUC   mean: 0.6112 std: 0.0156
+F1       mean: 0.5666 std: 0.0137
+ROC-AUC  mean: 0.6270 std: 0.0169
+
+----------------------------------
+
+Phase III
+
+PR-AUC   mean: 0.8061 std: 0.0144
+F1       mean: 0.8153 std: 0.0100
+ROC-AUC  mean: 0.7025 std: 0.0207

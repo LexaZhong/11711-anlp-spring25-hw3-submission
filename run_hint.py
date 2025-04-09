@@ -120,7 +120,7 @@ def main():
     else:
         print(f"[INFO] Found existing checkpoint: {hint_model_path}")
         # Load and run inference
-        model = torch.load(hint_model_path, map_location=device)
+        model = torch.load(hint_model_path, map_location=device,weights_only=False)
         model.bootstrap_test(test_loader)
 
 
