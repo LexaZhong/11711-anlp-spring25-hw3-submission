@@ -1,4 +1,5 @@
-# HINT (Fork): Reproducing the Hierarchical Interaction Network for Clinical Trial Outcome Prediction
+# 11711 ANLP Spring 2024 - Homework 3
+## HINT (Fork): Reproducing the Hierarchical Interaction Network for Clinical Trial Outcome Prediction
 
 
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
