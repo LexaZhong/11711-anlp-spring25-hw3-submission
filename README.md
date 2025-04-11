@@ -1,9 +1,39 @@
-# HINT: Hierarchical Interaction Network for Clinical Trial Outcome Prediction
+# HINT (Fork): Reproducing the Hierarchical Interaction Network for Clinical Trial Outcome Prediction
 
 
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/release/python-370/)
 [![GitHub Repo stars](https://img.shields.io/github/stars/futianfan/clinical-trial-outcome-prediction)](https://github.com/futianfan/clinical-trial-outcome-prediction/stargazers)
 [![GitHub Repo stars](https://img.shields.io/github/forks/futianfan/clinical-trial-outcome-prediction)](https://github.com/futianfan/clinical-trial-outcome-prediction/network/members)
+
+
+This repository is a **fork of the original [HINT repository](https://github.com/futianfan/clinical-trial-outcome-prediction)**, which proposes a deep learning method for predicting clinical trial outcomes based on hierarchical interactions among multi-modal data.
+
+In this fork, we focus on **reproducing the original results** and investigating the reproducibility and stability of the HINT model. We provide:
+- Reproduction script: `run_hint.py`
+- Saved results: `result/`
+- Trained models: `save_model/` (organized by clinical trial phase)
+
+---
+
+## 🧪 Reproduction Setup
+
+To reproduce the original HINT results:
+
+1. Run the main training and evaluation script:
+   ```bash
+   python run.py --base_name phase_I --datafolder data --save_dir save_model --admet_ckpt save_model/admet_model.ckpt --device cpu --epoch 3 --lr 1e-3 --weight_decay 0.0 
+   
+2. After training:
+
+- Performance metrics for each phase will be saved in the `result/` folder.
+
+- The trained model checkpoints will be saved under `save_model/` for each trial phase (Phase I, II, III).
+
+- All preprocessing, training logic, and model architecture follow the original implementation unless otherwise noted in our reproduction report.
+
+
+⬇️ The following content is the original readme.
+---
 
 
 
