@@ -16,7 +16,7 @@ In this fork, we focus on **reproducing the original results** and investigating
 
 ---
 
-## 🧪 Reproduction Setup
+### 🧪 Reproduction Setup
 
 To reproduce the original HINT results:
 
