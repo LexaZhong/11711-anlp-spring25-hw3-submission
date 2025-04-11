@@ -11,8 +11,8 @@ This repository is a **fork of the original [HINT repository](https://github.com
 
 In this fork, we focus on **reproducing the original results** and investigating the reproducibility and stability of the HINT model. We provide:
 - Reproduction script: `run_hint.py`
-- Saved results: `result/`
-- Trained models: `save_model/` (organized by clinical trial phase)
+- Saved results: `result/`, including (e.g. predicted_label `phase_I_results.txt`) for each phase and overall performance (`overall_results.txt`)
+- Trained models: `save_model/` (organized by clinical trial phase, e.g.`phase_I.ckpt`)
 
 ---
 
@@ -20,13 +20,14 @@ In this fork, we focus on **reproducing the original results** and investigating
 
 To reproduce the original HINT results:
 
-1. Run the main training and evaluation script:
+1. Run the main training and evaluation script:  
+   For Phase I:
    ```bash
    python run.py --base_name phase_I --datafolder data --save_dir save_model --admet_ckpt save_model/admet_model.ckpt --device cpu --epoch 3 --lr 1e-3 --weight_decay 0.0 
    
-2. After training:
+3. After training:
 
-- Performance metrics for each phase will be saved in the `result/` folder.
+- Prediction results for each phase will be saved in the `predict_label.txt`.
 
 - The trained model checkpoints will be saved under `save_model/` for each trial phase (Phase I, II, III).
 
