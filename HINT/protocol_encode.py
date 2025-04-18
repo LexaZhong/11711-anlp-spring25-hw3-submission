@@ -78,9 +78,7 @@ def collect_cleaned_sentence_set() -> set[str]:
 
 
 def save_sentence_bert_dict_pkl():
-    pipe = pipeline("feature-extraction", model=BIOBERT, device=DEVICE)
-
-    cleaned_sentence_set = collect_cleaned_sentence_set()
+    encoder = TextEmbedding(model_name=BIOBERT)
 
     # from biobert_embedding.embedding import BiobertEmbedding
     # biobert = BiobertEmbedding()
@@ -88,11 +86,11 @@ def save_sentence_bert_dict_pkl():
     # def text2vec(text):
     #     return biobert.sentence_vector(text)
 
+    cleaned_sentence_set = collect_cleaned_sentence_set()
+
     protocol_sentence_2_embedding = dict()
     for sentence in tqdm(cleaned_sentence_set):
-        embeddings = pipe(sentence, return_tensors="pt")
-        sentence_mean = embeddings[0].mean(dim=0)
-        protocol_sentence_2_embedding[sentence] = sentence_mean
+        protocol_sentence_2_embedding[sentence] = encoder.sentence2vector(sentence)
     pickle.dump(protocol_sentence_2_embedding, open(BIOBERT_SENT2VEC_FILEPATH, 'wb'))
     return
 
@@ -118,6 +116,24 @@ def protocol2feature(protocol: str, sentence_2_vec: dict[str, Tensor]) -> tuple[
     else:
         exclusion_feature = torch.cat(exclusion_feature, 0)
     return inclusion_feature, exclusion_feature
+
+
+class TextEmbedding():
+    def __init__(self, model_name):
+        self.model_name = model_name
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name).to(DEVICE)
+
+    def sentence2vector(self, sentence) -> Tensor:
+        inputs = self.tokenizer(sentence, return_tensors="pt",
+                                truncation=True, padding=True).to(DEVICE)
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+        last_hidden_state = outputs.last_hidden_state  # [1, seq_len, hidden_size]
+        attention_mask = inputs['attention_mask']  # [1, seq_len]
+        mask = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+        sentence_embedding = (last_hidden_state * mask).sum(1) / mask.sum(1)  # [1, hidden_size]
+        return sentence_embedding
 
 
 class Protocol_Embedding(nn.Sequential):
