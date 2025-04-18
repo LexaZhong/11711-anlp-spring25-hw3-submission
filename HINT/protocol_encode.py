@@ -90,23 +90,26 @@ def save_sentence_bert_dict_pkl():
 
     protocol_sentence_2_embedding = dict()
     for sentence in tqdm(cleaned_sentence_set):
-        protocol_sentence_2_embedding[sentence] = encoder.sentence2vector(sentence)
-    pickle.dump(protocol_sentence_2_embedding, open(BIOBERT_SENT2VEC_FILEPATH, 'wb'))
-    return
+        protocol_sentence_2_embedding[sentence] = encoder.sentence2vector(sentence).detach().cpu()
+
+    with open(BIOBERT_SENT2VEC_FILEPATH, 'wb') as f:
+        pickle.dump(protocol_sentence_2_embedding, f)
 
 
 def load_sentence_2_vec() -> dict[str, Tensor]:
     sentence_2_vec = pickle.load(open(BIOBERT_SENT2VEC_FILEPATH, 'rb'))
+    # sentence_2_vec = {sentence: vec.to(DEVICE)
+    #                   for sentence, vec in sentence_2_vec.items()}
     return sentence_2_vec
 
 
 def protocol2feature(protocol: str, sentence_2_vec: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
     result = split_protocol(protocol)
     inclusion_criteria, exclusion_criteria = result[0], result[-1]
-    inclusion_feature = [sentence_2_vec[sentence].view(
-        1, -1) for sentence in inclusion_criteria if sentence in sentence_2_vec]
-    exclusion_feature = [sentence_2_vec[sentence].view(
-        1, -1) for sentence in exclusion_criteria if sentence in sentence_2_vec]
+    inclusion_feature = [sentence_2_vec[sentence].view(1, -1)
+                         for sentence in inclusion_criteria if sentence in sentence_2_vec]
+    exclusion_feature = [sentence_2_vec[sentence].view(1, -1)
+                         for sentence in exclusion_criteria if sentence in sentence_2_vec]
     if inclusion_feature == []:
         inclusion_feature = torch.zeros(1, 768)
     else:
@@ -131,7 +134,8 @@ class TextEmbedding():
             outputs = self.model(**inputs)
         last_hidden_state = outputs.last_hidden_state  # [1, seq_len, hidden_size]
         attention_mask = inputs['attention_mask']  # [1, seq_len]
-        mask = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+        mask = attention_mask.unsqueeze(-1).float()
+        # Mean pooling
         sentence_embedding = (last_hidden_state * mask).sum(1) / mask.sum(1)  # [1, hidden_size]
         return sentence_embedding
 
