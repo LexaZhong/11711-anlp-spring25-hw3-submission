@@ -26,7 +26,7 @@ BIOBERT = "dmis-lab/biobert-v1.1"
 BIOBERT_SENT2VEC_FILEPATH = f"data/{BIOBERT.split('/')[-1]}_sentence2embedding.pkl"
 
 
-def clean_protocol(protocol):
+def clean_protocol(protocol: str) -> list[str]:
     protocol = protocol.lower()
     protocol_split = protocol.split('\n')
     def filter_out_empty_fn(x): return len(x.strip())>0
@@ -36,7 +36,7 @@ def clean_protocol(protocol):
     return protocol_split
 
 
-def get_all_protocols():
+def get_all_protocols() -> list[str]:
     input_file = 'data/raw_data.csv'
     with open(input_file, 'r') as csvfile:
         rows = list(csv.reader(csvfile, delimiter=','))[1:]
@@ -44,7 +44,7 @@ def get_all_protocols():
     return protocols
 
 
-def split_protocol(protocol):
+def split_protocol(protocol: str) -> tuple:
     protocol_split = clean_protocol(protocol)
     inclusion_idx, exclusion_idx = len(protocol_split), len(protocol_split)
     for idx, sentence in enumerate(protocol_split):
@@ -66,7 +66,7 @@ def split_protocol(protocol):
         return protocol_split,
 
 
-def collect_cleaned_sentence_set():
+def collect_cleaned_sentence_set() -> set[str]:
     protocol_lst = get_all_protocols()
     cleaned_sentence_lst = []
     for protocol in protocol_lst:
@@ -102,7 +102,7 @@ def load_sentence_2_vec() -> dict[str, Tensor]:
     return sentence_2_vec
 
 
-def protocol2feature(protocol, sentence_2_vec):
+def protocol2feature(protocol: str, sentence_2_vec: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
     result = split_protocol(protocol)
     inclusion_criteria, exclusion_criteria = result[0], result[-1]
     inclusion_feature = [sentence_2_vec[sentence].view(
