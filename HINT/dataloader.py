@@ -21,25 +21,41 @@ sentence2vec = load_sentence_2_vec()
 
 
 class Trial_Dataset(data.Dataset):
-    def __init__(self, nctid_lst, label_lst, smiles_lst, icdcode_lst, criteria_lst):
+    def __init__(self, nctid_lst, label_lst,
+                 smiles_lst, icdcode_lst, criteria_lst,
+                 mesasure_lst, design_lst):
         self.nctid_lst = nctid_lst
         self.label_lst = label_lst
         self.smiles_lst = smiles_lst
         self.icdcode_lst = icdcode_lst
         self.criteria_lst = criteria_lst
+        self.mesasure_lst = mesasure_lst
+        self.design_lst = design_lst
 
     def __len__(self):
         return len(self.nctid_lst)
 
     def __getitem__(self, index):
-        return self.nctid_lst[index], self.label_lst[index], self.smiles_lst[index], self.icdcode_lst[index], self.criteria_lst[index]
+        return (
+            self.nctid_lst[index],
+            self.label_lst[index],
+            self.smiles_lst[index],
+            self.icdcode_lst[index],
+            self.criteria_lst[index],
+            self.mesasure_lst[index],
+            self.design_lst[index],
+        )
     # smiles_lst[index] is list of smiles
 
 
 class Trial_Dataset_Complete(Trial_Dataset):
-    def __init__(self, nctid_lst, status_lst, why_stop_lst, label_lst, phase_lst,
-                 diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst):
-        Trial_Dataset.__init__(self, nctid_lst, label_lst, smiles_lst, icdcode_lst, criteria_lst)
+    def __init__(self, nctid_lst, status_lst, why_stop_lst, label_lst,
+                 phase_lst, diseases_lst, icdcode_lst,
+                 drugs_lst, smiles_lst, criteria_lst,
+                 mesasure_lst, design_lst):
+        Trial_Dataset.__init__(self, nctid_lst, label_lst,
+                               smiles_lst, icdcode_lst, criteria_lst,
+                               mesasure_lst, design_lst)
         self.status_lst = status_lst
         self.why_stop_lst = why_stop_lst
         self.phase_lst = phase_lst
@@ -47,8 +63,20 @@ class Trial_Dataset_Complete(Trial_Dataset):
         self.drugs_lst = drugs_lst
 
     def __getitem__(self, index):
-        return self.nctid_lst[index], self.status_lst[index], self.why_stop_lst[index], self.label_lst[index], self.phase_lst[index], \
-            self.diseases_lst[index], self.icdcode_lst[index], self.drugs_lst[index], self.smiles_lst[index], self.criteria_lst[index]
+        return (
+            self.nctid_lst[index],
+            self.status_lst[index],
+            self.why_stop_lst[index],
+            self.label_lst[index],
+            self.phase_lst[index],
+            self.diseases_lst[index],
+            self.icdcode_lst[index],
+            self.drugs_lst[index],
+            self.smiles_lst[index],
+            self.criteria_lst[index],
+            self.mesasure_lst[index],
+            self.design_lst[index],
+        )
 
 
 class ADMET_Dataset(data.Dataset):
@@ -120,7 +148,14 @@ def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size):
     drugs_lst = [row[7] for row in rows]
     smiles_lst = [row[8] for row in rows]
     criteria_lst = [row[9] for row in rows]
-    dataset = Trial_Dataset(nctid_lst, label_lst, smiles_lst, icdcode_lst, criteria_lst)
+
+    # New features
+    mesasure_lst = [row[10] for row in rows]
+    design_lst = [row[11] for row in rows]
+
+    dataset = Trial_Dataset(nctid_lst, label_lst,
+                            smiles_lst, icdcode_lst, criteria_lst,
+                            mesasure_lst, design_lst)
     data_loader = data.DataLoader(dataset, batch_size=batch_size,
                                   shuffle=shuffle, collate_fn=trial_collate_fn)
     return data_loader
@@ -140,8 +175,15 @@ def csv_three_feature_2_complete_dataloader(csvfile, shuffle, batch_size):
     smiles_lst = [row[8] for row in rows]
     new_drugs_lst, new_smiles_lst = [], []
     criteria_lst = [row[9] for row in rows]
-    dataset = Trial_Dataset_Complete(nctid_lst, status_lst, why_stop_lst, label_lst, phase_lst,
-                                     diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst)
+
+    # New features
+    mesasure_lst = [row[10] for row in rows]
+    design_lst = [row[11] for row in rows]
+
+    dataset = Trial_Dataset_Complete(nctid_lst, status_lst, why_stop_lst, label_lst,
+                                     phase_lst, diseases_lst, icdcode_lst,
+                                     drugs_lst, smiles_lst, criteria_lst,
+                                     mesasure_lst, design_lst)
     data_loader = data.DataLoader(dataset, batch_size=batch_size,
                                   shuffle=shuffle, collate_fn=trial_complete_collate_fn)
     return data_loader
