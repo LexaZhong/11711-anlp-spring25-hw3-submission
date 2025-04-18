@@ -13,10 +13,17 @@ from functools import reduce
 
 import torch
 import torch.nn.functional as F
-from torch import nn
+from torch import Tensor, nn
 from tqdm import tqdm
+from transformers import AutoModel, AutoTokenizer, pipeline
 
 torch.manual_seed(0)
+
+DEVICE = ('cuda' if torch.cuda.is_available() else
+          'mps' if torch.backends.mps.is_available() else
+          'cpu')
+BIOBERT = "dmis-lab/biobert-v1.1"
+BIOBERT_SENT2VEC_FILEPATH = f"data/{BIOBERT.split('/')[-1]}_sentence2embedding.pkl"
 
 
 def clean_protocol(protocol):
@@ -65,27 +72,33 @@ def collect_cleaned_sentence_set():
     for protocol in protocol_lst:
         result = split_protocol(protocol)
         cleaned_sentence_lst.extend(result[0])
-        if len(result)==2:
+        if len(result) == 2:
             cleaned_sentence_lst.extend(result[1])
     return set(cleaned_sentence_lst)
 
 
 def save_sentence_bert_dict_pkl():
-    cleaned_sentence_set = collect_cleaned_sentence_set()
-    from biobert_embedding.embedding import BiobertEmbedding
-    biobert = BiobertEmbedding()
+    pipe = pipeline("feature-extraction", model=BIOBERT, device=DEVICE)
 
-    def text2vec(text):
-        return biobert.sentence_vector(text)
+    cleaned_sentence_set = collect_cleaned_sentence_set()
+
+    # from biobert_embedding.embedding import BiobertEmbedding
+    # biobert = BiobertEmbedding()
+
+    # def text2vec(text):
+    #     return biobert.sentence_vector(text)
+
     protocol_sentence_2_embedding = dict()
     for sentence in tqdm(cleaned_sentence_set):
-        protocol_sentence_2_embedding[sentence] = text2vec(sentence)
-    pickle.dump(protocol_sentence_2_embedding, open('data/sentence2embedding.pkl', 'wb'))
+        embeddings = pipe(sentence, return_tensors="pt")
+        sentence_mean = embeddings[0].mean(dim=0)
+        protocol_sentence_2_embedding[sentence] = sentence_mean
+    pickle.dump(protocol_sentence_2_embedding, open(BIOBERT_SENT2VEC_FILEPATH, 'wb'))
     return
 
 
-def load_sentence_2_vec():
-    sentence_2_vec = pickle.load(open('data/sentence2embedding.pkl', 'rb'))
+def load_sentence_2_vec() -> dict[str, Tensor]:
+    sentence_2_vec = pickle.load(open(BIOBERT_SENT2VEC_FILEPATH, 'rb'))
     return sentence_2_vec
 
 
