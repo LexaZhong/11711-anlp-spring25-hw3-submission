@@ -30,7 +30,8 @@ class Interaction(nn.Sequential):
 		self.protocol_encoder = protocol_encoder 
 		self.global_embed_size = global_embed_size 
 		self.highway_num_layer = highway_num_layer 
-		self.feature_dim = self.molecule_encoder.embedding_size + self.disease_encoder.embedding_size + self.protocol_encoder.embedding_size
+		# modified dimension
+		self.feature_dim = self.molecule_encoder.embedding_size + self.disease_encoder.embedding_size + self.protocol_encoder.embedding_size + 2
 		self.epoch = epoch 
 		self.lr = lr 
 		self.weight_decay = weight_decay 
@@ -59,8 +60,18 @@ class Interaction(nn.Sequential):
 		protocol_embed = self.protocol_encoder.forward(criteria_lst)
 		return molecule_embed, icd_embed, protocol_embed	
 
-	def forward_encoder_2_interaction(self, molecule_embed, icd_embed, protocol_embed):
-		encoder_embedding = torch.cat([molecule_embed, icd_embed, protocol_embed], 1)
+	# def forward_encoder_2_interaction(self, molecule_embed, icd_embed, protocol_embed):
+	# 	encoder_embedding = torch.cat([molecule_embed, icd_embed, protocol_embed], 1)
+	# 	# interaction_embedding = self.feed_lst_of_module(encoder_embedding, [self.encoder2interaction_fc, self.encoder2interaction_highway])
+	# 	h = self.encoder2interaction_fc(encoder_embedding)
+	# 	h = self.f(h)
+	# 	h = self.encoder2interaction_highway(h)
+	# 	interaction_embedding = self.f(h)
+	# 	return interaction_embedding 
+	
+	def unified_forward_encoder_2_interaction(self, phase_I_lst, phase_II_lst, molecule_embed, icd_embed, protocol_embed):
+		# add in phase I and phase II binary indicator
+		encoder_embedding = torch.cat([phase_I_lst, phase_II_lst,molecule_embed, icd_embed, protocol_embed], 1)
 		# interaction_embedding = self.feed_lst_of_module(encoder_embedding, [self.encoder2interaction_fc, self.encoder2interaction_highway])
 		h = self.encoder2interaction_fc(encoder_embedding)
 		h = self.f(h)
@@ -68,9 +79,17 @@ class Interaction(nn.Sequential):
 		interaction_embedding = self.f(h)
 		return interaction_embedding 
 
-	def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
+	# def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
+	# 	molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(smiles_lst2, icdcode_lst3, criteria_lst)
+	# 	interaction_embedding = self.forward_encoder_2_interaction(molecule_embed, icd_embed, protocol_embed)
+	# 	output = self.pred_nn(interaction_embedding)
+	# 	return output ### 32, 1
+	
+	# Unified Forward Function
+
+	def unified_forward(self, phase_I_lst, phase_II_lst, smiles_lst2, icdcode_lst3, criteria_lst):
 		molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(smiles_lst2, icdcode_lst3, criteria_lst)
-		interaction_embedding = self.forward_encoder_2_interaction(molecule_embed, icd_embed, protocol_embed)
+		interaction_embedding = self.unified_forward_encoder_2_interaction(phase_I_lst, phase_II_lst, molecule_embed, icd_embed, protocol_embed)
 		output = self.pred_nn(interaction_embedding)
 		return output ### 32, 1
 
@@ -106,9 +125,23 @@ class Interaction(nn.Sequential):
 		label_1_ratio = sum(label_all) / len(label_all)
 		return auc_score, f1score, prauc_score, precision, recall, accuracy, predict_1_ratio, label_1_ratio 
 
-	def testloader_to_lst(self, dataloader):
-		nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst = [], [], [], [], []
-		for nctid, label, smiles, icdcode, criteria in dataloader:
+	# def testloader_to_lst(self, dataloader):
+	# 	nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst = [], [], [], [], []
+	# 	for nctid, label, smiles, icdcode, criteria in dataloader:
+	# 		nctid_lst.extend(nctid)
+	# 		label_lst.extend([i.item() for i in label])
+	# 		smiles_lst2.extend(smiles)
+	# 		icdcode_lst3.extend(icdcode)
+	# 		criteria_lst.extend(criteria)
+	# 	length = len(nctid_lst)
+	# 	assert length == len(smiles_lst2) and length == len(icdcode_lst3)
+	# 	return nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst, length 
+	
+	def unified_testloader_to_lst(self, dataloader):
+		nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst,phase_I_lst, phase_II_lst= [],[],[], [], [], [], []
+		for phase_I, phase_II, nctid, label, smiles, icdcode, criteria in dataloader:
+			phase_I_lst.extend(phase_I)
+			phase_II_lst.extend(phase_II)
 			nctid_lst.extend(nctid)
 			label_lst.extend([i.item() for i in label])
 			smiles_lst2.extend(smiles)
@@ -116,17 +149,31 @@ class Interaction(nn.Sequential):
 			criteria_lst.extend(criteria)
 		length = len(nctid_lst)
 		assert length == len(smiles_lst2) and length == len(icdcode_lst3)
-		return nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst, length 
+		return phase_I_lst, phase_II_lst, nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst, length 	
 
 
 
-	def generate_predict(self, dataloader):
+	# def generate_predict(self, dataloader):
+	# 	whole_loss = 0 
+	# 	label_all, predict_all, nctid_all = [], [], []
+	# 	for nctid_lst, label_vec, smiles_lst2, icdcode_lst3, criteria_lst in dataloader:
+	# 		nctid_all.extend(nctid_lst)
+	# 		label_vec = label_vec.to(self.device)
+	# 		output = self.forward(smiles_lst2, icdcode_lst3, criteria_lst).view(-1)  
+	# 		loss = self.loss(output, label_vec.float())
+	# 		whole_loss += loss.item()
+	# 		predict_all.extend([i.item() for i in torch.sigmoid(output)])
+	# 		label_all.extend([i.item() for i in label_vec])
+
+	# 	return whole_loss, predict_all, label_all, nctid_all
+	
+	def unified_generate_predict(self, dataloader):
 		whole_loss = 0 
 		label_all, predict_all, nctid_all = [], [], []
-		for nctid_lst, label_vec, smiles_lst2, icdcode_lst3, criteria_lst in dataloader:
+		for nctid_lst, label_vec, smiles_lst2, icdcode_lst3, criteria_lst, phase_I_lst, phase_II_lst in dataloader:
 			nctid_all.extend(nctid_lst)
 			label_vec = label_vec.to(self.device)
-			output = self.forward(smiles_lst2, icdcode_lst3, criteria_lst).view(-1)  
+			output = self.forward(phase_I_lst, phase_II_lst,smiles_lst2, icdcode_lst3, criteria_lst).view(-1)  
 			loss = self.loss(output, label_vec.float())
 			whole_loss += loss.item()
 			predict_all.extend([i.item() for i in torch.sigmoid(output)])
@@ -139,7 +186,7 @@ class Interaction(nn.Sequential):
 		# 	best_threshold = self.select_threshold_for_binary(validloader)
 		self.eval()
 		best_threshold = 0.5 
-		whole_loss, predict_all, label_all, nctid_all = self.generate_predict(dataloader)
+		whole_loss, predict_all, label_all, nctid_all = self.unified_generate_predict(dataloader)
 		from HINT.utils import plot_hist
 		plt.clf()
 		prefix_name = "./figure/" + self.save_name 
@@ -187,7 +234,7 @@ class Interaction(nn.Sequential):
 		# 	best_threshold = self.select_threshold_for_binary(validloader)
 		self.eval()
 		best_threshold = 0.5 
-		whole_loss, predict_all, label_all, nctid_all = self.generate_predict(dataloader)
+		whole_loss, predict_all, label_all, nctid_all = self.unified_generate_predict(dataloader)
 		# from HINT.utils import plot_hist
 		# plt.clf()
 		# prefix_name = "./figure/" + self.save_name 
@@ -466,11 +513,11 @@ class HINT_nograph(Interaction):
 		self = self.to(device)
 
 
-	def forward(self, smiles_lst2, icdcode_lst3, criteria_lst, if_gnn = False):
+	def forward(self,phase_I_lst, phase_II_lst, smiles_lst2, icdcode_lst3, criteria_lst, if_gnn = False):
 		### encoder for molecule, disease and protocol
 		molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(smiles_lst2, icdcode_lst3, criteria_lst)
 		### interaction 
-		interaction_embedding = self.forward_encoder_2_interaction(molecule_embed, icd_embed, protocol_embed)
+		interaction_embedding = self.unified_forward_encoder_2_interaction(phase_I_lst, phase_II_lst, molecule_embed, icd_embed, protocol_embed)
 		### risk of disease 
 		risk_of_disease_embedding = self.feed_lst_of_module(input_feature = icd_embed, 
 															lst_of_module = [self.risk_disease_fc, self.risk_disease_higway])
@@ -585,8 +632,8 @@ nn.ModuleList([ nn.ModuleList([nn.Linear(3,2) for j in range(5)] + [None]) for i
 		highway_fc = nn.Linear(self.global_embed_size*2, 1).to(self.device)
 		return nn.ModuleList([highway_nn, highway_fc])	
 
-	def forward(self, smiles_lst2, icdcode_lst3, criteria_lst, return_attention_matrix = False):
-		embedding_lst = HINT_nograph.forward(self, smiles_lst2, icdcode_lst3, criteria_lst, if_gnn = True)
+	def forward(self,phase_I_lst, phase_II_lst,  smiles_lst2, icdcode_lst3, criteria_lst, return_attention_matrix = False):
+		embedding_lst = HINT_nograph.forward(self,phase_I_lst, phase_II_lst, smiles_lst2, icdcode_lst3, criteria_lst, if_gnn = True)
 		### length is 13, each is 32,50 
 		batch_size = embedding_lst[0].shape[0]
 		output_lst = []
