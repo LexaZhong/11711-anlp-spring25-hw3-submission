@@ -6,13 +6,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn.functional as F
+from module import GCN, Highway
 from sklearn.metrics import (accuracy_score, average_precision_score, f1_score,
                              precision_score, recall_score, roc_auc_score)
 from torch import nn
 from torch.autograd import Variable
 from tqdm import tqdm
-
-from HINT.module import GCN, Highway
 
 torch.manual_seed(0)
 
