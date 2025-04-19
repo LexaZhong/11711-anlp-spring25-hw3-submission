@@ -624,6 +624,8 @@ nn.ModuleList([ nn.ModuleList([nn.Linear(3,2) for j in range(5)] + [None]) for i
     # generate attention matrix
 
 
+"""
+
 class Only_Molecule(Interaction):
 
     def __init__(self, molecule_encoder, disease_encoder, protocol_encoder,
@@ -672,6 +674,8 @@ class Only_Disease(Only_Molecule):
     def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
         icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
         return self.disease2out(icd_embed)
+
+"""
 
 
 def dataloader2Xy(nctid_lst, label_vec, smiles_lst2, icdcode_lst3, criteria_lst, global_icd):
