@@ -1,18 +1,22 @@
+from copy import deepcopy
+
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from copy import deepcopy 
+from gnn_layers import GraphAttention, GraphConvolution
 from torch.autograd import Variable
 from torch.utils import data
 from torch.utils.data import SequentialSampler
-import matplotlib.pyplot as plt
-import numpy as np 
-sigmoid = torch.nn.Sigmoid() 
+
+sigmoid = torch.nn.Sigmoid()
 torch.manual_seed(0)
 
-from HINT.gnn_layers import GraphConvolution, GraphAttention
-torch.manual_seed(4) 
+
+torch.manual_seed(4)
 np.random.seed(1)
+
 
 class Highway(nn.Module):
     def __init__(self, size, num_layers):
@@ -39,10 +43,6 @@ class Highway(nn.Module):
         return x
 
 
-
-
-
-
 class GCN(nn.Module):
     def __init__(self, nfeat, nhid, nclass, dropout, init):
         super(GCN, self).__init__()
@@ -57,10 +57,8 @@ class GCN(nn.Module):
     def forward(self, x, adj):
         x = F.dropout(F.relu(self.gc1(x, adj)), self.dropout, training=self.training)
         x = self.gc2(x, adj)
-        return x 
+        return x
         # return F.log_softmax(x, dim=1)
-
-
 
 
 class GCN_drop_in(nn.Module):
@@ -81,16 +79,19 @@ class GCN_drop_in(nn.Module):
 
         return F.log_softmax(x, dim=1)
 
+
 class GAT(nn.Module):
     def __init__(self, nfeat, nhid, nclass, dropout, alpha, nheads):
         super(GAT, self).__init__()
         self.dropout = dropout
 
-        self.attentions = [GraphAttention(nfeat, nhid, dropout=dropout, alpha=alpha, concat=True) for _ in range(nheads)]
+        self.attentions = [GraphAttention(
+            nfeat, nhid, dropout=dropout, alpha=alpha, concat=True) for _ in range(nheads)]
         for i, attention in enumerate(self.attentions):
             self.add_module('attention_{}'.format(i), attention)
 
-        self.out_att = GraphAttention(nhid * nheads, nclass, dropout=dropout, alpha=alpha, concat=False)
+        self.out_att = GraphAttention(
+            nhid * nheads, nclass, dropout=dropout, alpha=alpha, concat=False)
 
     def forward(self, x, adj):
         x = F.dropout(x, self.dropout, training=self.training)
@@ -100,21 +101,10 @@ class GAT(nn.Module):
         return F.log_softmax(x, dim=1)
 
 
-
-
-if __name__ == "__main__":
-    gnn = GCN(
-            nfeat = 20,
-            nhid = 30,
-            nclass = 1,
-            dropout = 0.6,
-            init = 'uniform') 
-
-
-
-
-
-
-
-
-
+# if __name__ == "__main__":
+#     gnn = GCN(
+#         nfeat=20,
+#         nhid=30,
+#         nclass=1,
+#         dropout=0.6,
+#         init='uniform')
