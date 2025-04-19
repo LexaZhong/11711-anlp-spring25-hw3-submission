@@ -108,6 +108,7 @@ if __name__ == "__main__":
     config ={
         'lr': 1e-3,
         'epoch': 10,
+        'device': device,
     }
 
     run = wandb.init(
@@ -148,8 +149,12 @@ if __name__ == "__main__":
                       epoch=3,
                       lr=1e-3)
 
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total parameters: {total_params}")
+    print(f"Trainable parameters: {trainable_params}")
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
     criterion = nn.BCEWithLogitsLoss()
     scaler = torch.GradScaler(device)
-
-    train(config['epoch'], model, train_loader, valid_loader, optimizer, criterion, scaler)
+    # train(config['epoch'], model, train_loader, valid_loader, optimizer, criterion, scaler)
