@@ -44,8 +44,8 @@ class Interaction(nn.Sequential):
 
         # NN
         self.encoder2interaction_fc = nn.Linear(self.feature_dim, self.global_embed_size).to(device)
-        self.encoder2interaction_highway = Highway(
-            self.global_embed_size, self.highway_num_layer).to(device)
+        self.encoder2interaction_highway = Highway(self.global_embed_size,
+                                                   self.highway_num_layer).to(device)
         self.pred_nn = nn.Linear(self.global_embed_size, 1)
 
         self.device = device
@@ -906,7 +906,7 @@ class ADMET(nn.Sequential):
 
         self.admet_pred = nn.ModuleList(
             [nn.Linear(self.global_embed_size, 1).to(device) for i in range(5)])
-        self.f = F.relu
+        self.f = F.gelu
 
         self.device = device
         self = self.to(device)
