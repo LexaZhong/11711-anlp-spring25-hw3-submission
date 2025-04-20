@@ -8,20 +8,21 @@ output:
 '''
 
 import csv
+import os
 import pickle
+import time
 from functools import reduce
+
+import openai
 import pandas as pd
+import tiktoken
 import torch
 import torch.nn.functional as F
+from dotenv import load_dotenv
+from openai import OpenAIError
 from torch import Tensor, nn
 from tqdm import tqdm
 from transformers import AutoModel, AutoTokenizer, pipeline
-import openai
-import os
-from dotenv import load_dotenv
-import tiktoken
-from openai import OpenAIError
-import time
 
 torch.manual_seed(0)
 
@@ -30,6 +31,7 @@ TOKEN_LIMIT = 8192
 CHUNK_SIZE = 2048
 
 encoding = tiktoken.encoding_for_model(MODEL_NAME)
+
 
 def get_all_protocols() -> list[str]:
     input_file = 'data/new_data.csv'
@@ -42,13 +44,14 @@ def get_all_protocols() -> list[str]:
         protocols[nctid] = protocol
     return protocols
 
+
 def collect_cleaned_sentence_set():
-	protocol_lst = get_all_protocols() 
-	cleaned_sentence_lst = dict()
-	for icd in protocol_lst.keys():
-		protocol_clean = protocol_lst[icd].strip().lower()
-		cleaned_sentence_lst[icd] = protocol_clean
-	return cleaned_sentence_lst
+    protocol_lst = get_all_protocols()
+    cleaned_sentence_lst = dict()
+    for icd in protocol_lst.keys():
+        protocol_clean = protocol_lst[icd].strip().lower()
+        cleaned_sentence_lst[icd] = protocol_clean
+    return cleaned_sentence_lst
 
 # def save_sentence_gpt_dict_pkl():
 #     cleaned_sentence_set = collect_cleaned_sentence_set()
@@ -65,12 +68,14 @@ def collect_cleaned_sentence_set():
 #         #
 #     pickle.dump(protocol_sentence_2_embedding, open('data/icd2embedding.pkl', 'wb'))
 
+
 def truncate_or_split(text: str, max_tokens: int = TOKEN_LIMIT, chunk_size: int = CHUNK_SIZE) -> list[str]:
     tokens = encoding.encode(text)
     if len(tokens) <= max_tokens:
         return [text]
     else:
         return [encoding.decode(tokens[i:i+chunk_size]) for i in range(0, len(tokens), chunk_size)]
+
 
 def embed_chunks(chunks: list[str], retries: int = 5) -> torch.Tensor:
     for attempt in range(retries):
@@ -82,6 +87,7 @@ def embed_chunks(chunks: list[str], retries: int = 5) -> torch.Tensor:
             print(f"[Retry {attempt+1}/{retries}] Error: {e}")
             time.sleep(2 ** attempt + 1)
     raise RuntimeError("Max retries reached while embedding.")
+
 
 def batch_embed_texts(texts: list[str], max_retries=5):
     for attempt in range(max_retries):
@@ -96,7 +102,8 @@ def batch_embed_texts(texts: list[str], max_retries=5):
             time.sleep(2 ** attempt + 1)
     raise RuntimeError("Max retries exceeded for batch.")
 
-def save_sentence_gpt_dict_pkl(batch_size = 4):
+
+def save_sentence_gpt_dict_pkl(batch_size=4):
     cleaned_sentence_set = collect_cleaned_sentence_set()
     protocol_sentence_2_embedding = {}
 
@@ -106,7 +113,8 @@ def save_sentence_gpt_dict_pkl(batch_size = 4):
             protocol_sentence_2_embedding = pickle.load(f)
         print(f"Loaded {len(protocol_sentence_2_embedding)} previously saved embeddings.")
 
-    items = [(k, v) for k, v in cleaned_sentence_set.items() if k not in protocol_sentence_2_embedding.keys()]
+    items = [(k, v) for k, v in cleaned_sentence_set.items()
+             if k not in protocol_sentence_2_embedding.keys()]
     for i in tqdm(range(0, len(items), batch_size)):
         batch = items[i:i+batch_size]
         keys = [k for k, v in batch]
@@ -140,56 +148,62 @@ def save_sentence_gpt_dict_pkl(batch_size = 4):
     with open(output_path, 'wb') as f:
         pickle.dump(protocol_sentence_2_embedding, f)
 
+
 def clean_protocol(protocol):
-	protocol = protocol.lower()
-	protocol_split = protocol.split('\n')
-	filter_out_empty_fn = lambda x: len(x.strip())>0
-	strip_fn = lambda x:x.strip()
-	protocol_split = list(filter(filter_out_empty_fn, protocol_split))	
-	protocol_split = list(map(strip_fn, protocol_split))
-	return protocol_split 
+    protocol = protocol.lower()
+    protocol_split = protocol.split('\n')
+    def filter_out_empty_fn(x): return len(x.strip())>0
+    def strip_fn(x): return x.strip()
+    protocol_split = list(filter(filter_out_empty_fn, protocol_split))
+    protocol_split = list(map(strip_fn, protocol_split))
+    return protocol_split
+
 
 def split_protocol(protocol):
-	protocol_split = clean_protocol(protocol)
-	inclusion_idx, exclusion_idx = len(protocol_split), len(protocol_split)	
-	for idx, sentence in enumerate(protocol_split):
-		if "inclusion" in sentence:
-			inclusion_idx = idx
-			break
-	for idx, sentence in enumerate(protocol_split):
-		if "exclusion" in sentence:
-			exclusion_idx = idx 
-			break 		
-	if inclusion_idx + 1 < exclusion_idx + 1 < len(protocol_split):
-		inclusion_criteria = protocol_split[inclusion_idx:exclusion_idx]
-		exclusion_criteria = protocol_split[exclusion_idx:]
-		if not (len(inclusion_criteria) > 0 and len(exclusion_criteria) > 0):
-			print(len(inclusion_criteria), len(exclusion_criteria), len(protocol_split))
-			exit()
-		return inclusion_criteria, exclusion_criteria ## list, list 
-	else:
-		return protocol_split, 
+    protocol_split = clean_protocol(protocol)
+    inclusion_idx, exclusion_idx = len(protocol_split), len(protocol_split)
+    for idx, sentence in enumerate(protocol_split):
+        if "inclusion" in sentence:
+            inclusion_idx = idx
+            break
+    for idx, sentence in enumerate(protocol_split):
+        if "exclusion" in sentence:
+            exclusion_idx = idx
+            break
+    if inclusion_idx + 1 < exclusion_idx + 1 < len(protocol_split):
+        inclusion_criteria = protocol_split[inclusion_idx:exclusion_idx]
+        exclusion_criteria = protocol_split[exclusion_idx:]
+        if not (len(inclusion_criteria) > 0 and len(exclusion_criteria) > 0):
+            print(len(inclusion_criteria), len(exclusion_criteria), len(protocol_split))
+            exit()
+        return inclusion_criteria, exclusion_criteria  # list, list
+    else:
+        return protocol_split,
+
 
 def protocol2feature(protocol, sentence_2_vec):
-	result = split_protocol(protocol)
-	inclusion_criteria, exclusion_criteria = result[0], result[-1]
-	inclusion_feature = [sentence_2_vec[sentence].view(1,-1) for sentence in inclusion_criteria if sentence in sentence_2_vec]
-	exclusion_feature = [sentence_2_vec[sentence].view(1,-1) for sentence in exclusion_criteria if sentence in sentence_2_vec]
-	if inclusion_feature == []:
-		inclusion_feature = torch.zeros(1,768)
-	else:
-		inclusion_feature = torch.cat(inclusion_feature, 0)
-	if exclusion_feature == []:
-		exclusion_feature = torch.zeros(1,768)
-	else:
-		exclusion_feature = torch.cat(exclusion_feature, 0)
-	return inclusion_feature, exclusion_feature 
+    result = split_protocol(protocol)
+    inclusion_criteria, exclusion_criteria = result[0], result[-1]
+    inclusion_feature = [sentence_2_vec[sentence].view(
+        1, -1) for sentence in inclusion_criteria if sentence in sentence_2_vec]
+    exclusion_feature = [sentence_2_vec[sentence].view(
+        1, -1) for sentence in exclusion_criteria if sentence in sentence_2_vec]
+    if inclusion_feature == []:
+        inclusion_feature = torch.zeros(1, 768)
+    else:
+        inclusion_feature = torch.cat(inclusion_feature, 0)
+    if exclusion_feature == []:
+        exclusion_feature = torch.zeros(1, 768)
+    else:
+        exclusion_feature = torch.cat(exclusion_feature, 0)
+    return inclusion_feature, exclusion_feature
 
 
-def load_sentence_2_vec(embedding_path = 'data/icd2embedding.pkl'):
-	sentence_2_vec = pickle.load(open(embedding_path, 'rb'))
-	return sentence_2_vec
-	
+def load_sentence_2_vec(embedding_path='embeddings/icd2embedding.pkl'):
+    sentence_2_vec = pickle.load(open(embedding_path, 'rb'))
+    return sentence_2_vec
+
+
 class Protocol_Embedding(nn.Sequential):
     def __init__(self, input_dim, output_dim, device):
         super(Protocol_Embedding, self).__init__()
@@ -199,44 +213,38 @@ class Protocol_Embedding(nn.Sequential):
             self.fc = nn.Linear(self.input_dim*2, output_dim)
         else:
             self.fc = nn.Linear(self.input_dim, output_dim)
-        self.f = F.gelu #gelu
+        self.f = F.gelu  # gelu
         self.device = device
         self = self.to(device)
 
-    def forward_single(self, feature):
-        # inclusion_feature, exclusion_feature: xxx,3072
-        feature = feature.to(self.device)
-        feature_vec = torch.mean(feature, 0)
-        feature_vec = feature_vec.view(1, -1)
-        return feature_vec
     def forward_single_2(self, inclusion_feature, exclusion_feature):
         inclusion_feature = inclusion_feature.to(self.device)
         exclusion_feature = exclusion_feature.to(self.device)
         inclusion_vec = torch.mean(inclusion_feature, 0)
-        inclusion_vec = inclusion_vec.view(1,-1)
+        inclusion_vec = inclusion_vec.view(1, -1)
         exclusion_vec = torch.mean(exclusion_feature, 0)
-        exclusion_vec = exclusion_vec.view(1,-1)
-        return inclusion_vec, exclusion_vec 
+        exclusion_vec = exclusion_vec.view(1, -1)
+        return inclusion_vec, exclusion_vec
 
-    def forward(self, feature):
+    def forward(self, feature: list[Tensor]):
         if self.input_dim == 768:
             result = [self.forward_single_2(in_mat, ex_mat) for in_mat, ex_mat in feature]
             inclusion_mat = [in_vec for in_vec, ex_vec in result]
-            inclusion_mat = torch.cat(inclusion_mat, 0)  #### 32,768
+            inclusion_mat = torch.cat(inclusion_mat, 0)  # 32,768
             exclusion_mat = [ex_vec for in_vec, ex_vec in result]
-            exclusion_mat = torch.cat(exclusion_mat, 0)  #### 32,768 
+            exclusion_mat = torch.cat(exclusion_mat, 0)  # 32,768
             protocol_mat = torch.cat([inclusion_mat, exclusion_mat], 1)
             output = self.f(self.fc(protocol_mat))
         else:
-            result = [self.forward_single(f_mat) for f_mat in feature] 
-            result_mat = torch.cat(result, 0)  # 32,3072
-            output = self.f(self.fc(result_mat))
+            x = torch.stack(feature).to(self.device)  # [32, 3072]
+            output = self.f(self.fc(x))
         return output
-    
+
     @property
     def embedding_size(self):
         return self.output_dim
-	
+
+
 if __name__ == "__main__":
     load_dotenv()
 
