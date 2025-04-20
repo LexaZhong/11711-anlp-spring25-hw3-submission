@@ -15,7 +15,7 @@ from protocol_encode import load_sentence_2_vec, protocol2feature
 from torch.utils import data
 from torch.utils.data.dataloader import default_collate
 
-sentence2vec = load_sentence_2_vec()
+# sentence2vec = load_sentence_2_vec()
 
 
 class Trial_Dataset(data.Dataset):
@@ -94,7 +94,7 @@ def trial_collate_fn(sentence2vec=None, embedding_path=None):
         icdcode_lst = [icdcode_text_2_lst_of_lst(i[3]) for i in x]
         if sentence2vec is None and embedding_path is not None:
             sentence2vec = load_sentence_2_vec(embedding_path)
-        if embedding_path == 'data/icd2embedding.pkl':
+        if embedding_path == 'embeddings/icd2embedding.pkl':
             criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
         else:
             criteria_lst = [protocol2feature(i[4], sentence2vec) for i in x]
@@ -116,7 +116,7 @@ def trial_complete_collate_fn(sentence2vec=None, embedding_path=None):
         smiles_lst = [smiles_txt_to_lst(i[8]) for i in x]
         if sentence2vec is None and embedding_path is not None:
             sentence2vec = load_sentence_2_vec(embedding_path)
-        if embedding_path == 'data/icd2embedding.pkl':
+        if embedding_path == 'embeddings/icd2embedding.pkl':
             criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
         else:
             criteria_lst = [protocol2feature(i[9], sentence2vec) for i in x]
