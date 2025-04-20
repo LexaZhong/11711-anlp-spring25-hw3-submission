@@ -102,6 +102,7 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader,
 
         # Log epoch results
         wandb.log({
+            'curr_lr': float(optimizer.param_groups[0]['lr']),
             'train_loss': train_loss,
             'val_loss': val_loss,
             'val_roc_auc': roc_auc,
