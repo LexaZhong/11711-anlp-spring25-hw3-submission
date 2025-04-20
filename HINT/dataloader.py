@@ -11,10 +11,10 @@ import csv
 import os
 
 import torch
-from molecule_encode import smiles2mpnnfeature
-from protocol_encode import load_sentence_2_vec, protocol2feature
 from torch.utils import data
 from torch.utils.data.dataloader import default_collate
+
+from protocol_encode import load_sentence_2_vec, protocol2feature
 
 sentence2vec = load_sentence_2_vec()
 
