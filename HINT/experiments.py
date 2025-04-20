@@ -19,7 +19,7 @@ from tqdm import tqdm
 import wandb
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--base_name', type=str)
+parser.add_argument('--base_name', type=str, required=True)
 args = parser.parse_args()
 
 device = ('cuda' if torch.cuda.is_available() else
@@ -208,56 +208,83 @@ def get_model(config: dict, pretrain=True):
     return model
 
 
+def sweep_train(config=None):
+    with wandb.init(config=config) as run:
+        config = wandb.config
+        if config['embedding_path'] == 'embeddings/icd2embedding.pkl':
+            config['input_dim'] = 3072
+        else:
+            config['input_dim'] = 768
+        # Load data
+        train_loader, valid_loader, test_loader = get_dataloaders(config)
+
+        # Define models
+        model = get_model(config, pretrain=True)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
+                                                               factor=config['scheduler_factor'],
+                                                               patience=config['scheduler_patience'],
+                                                               min_lr=1e-5)
+        criterion = nn.BCEWithLogitsLoss()
+        scaler = torch.GradScaler(device)
+
+        # Train and test
+        checkpoint = train(config['epoch'], model, train_loader, valid_loader,
+                           optimizer, scheduler, criterion, scaler)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        test(config['epoch'], model, test_loader, criterion)
+
+        # Save model
+        checkpoint_dir = 'checkpoints'
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        torch.save(checkpoint, f'{checkpoint_dir}/{run.name}.pt')
+
+
 if __name__ == "__main__":
 
     wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
 
-    config ={
-        'batch_size': 32,
-        'lr': 1e-3,
-        'scheduler_factor': 0.8,
-        'scheduler_patience': 3,
-        'epoch': 10,
-        'pre_epoch': 10,
-        'output_dim': 128,
-        'n_highway': 5,
-        'mpnn_depth': 5,
-        'embedding_path': "embeddings/icd2embedding.pkl",
-        'phase': args.base_name,
-        'device': device,
+    sweep_config = {
+        'method': 'random',
+        'metric': {
+            'name': 'loss',
+            'goal': 'minimize'
+        },
+        'parameters': {
+            'lr': {
+                'distribution': 'uniform',
+                'min': 1e-4,
+                'max': 1e-3,
+            },
+            'n_highway': {
+                'distribution': 'int_uniform',
+                'min': 2,
+                'max': 10,
+            },
+            'mpnn_depth': {
+                'distribution': 'int_uniform',
+                'min': 2,
+                'max': 10,
+            },
+            'pre_epoch': {
+                'distribution': 'int_uniform',
+                'min': 10,
+                'max': 30,
+            },
+            'scheduler_factor': {
+                'values': [0.3, 0.5, 0.7]
+            },
+            'output_dim': {
+                'values': [64, 128, 256]
+            },
+            'epoch': {'value': 10},
+            'batch_size': {'value': 32},
+            'scheduler_patience': {'value': 2},
+            'embedding_path': {'value': "embeddings/icd2embedding.pkl"},
+            'phase': {'value': args.base_name},
+            'device': {'value': device},
+        }
     }
-    if config['embedding_path'] == 'embeddings/icd2embedding.pkl':
-        config['input_dim'] = 3072
-    else:
-        config['input_dim'] = 768
 
-    train_loader, valid_loader, test_loader = get_dataloaders(config)
-    model = get_model(config, pretrain=True)
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
-                                                           factor=config['scheduler_factor'],
-                                                           patience=config['scheduler_patience'],
-                                                           min_lr=1e-5)
-    criterion = nn.BCEWithLogitsLoss()
-    scaler = torch.GradScaler(device)
-
-    run = wandb.init(
-        project="11711-hw4-ablation",
-        config=config,
-        reinit='finish_previous',
-        #id     = "y28t31uz",
-        #resume = "must",
-    )
-
-    checkpoint = train(config['epoch'], model, train_loader, valid_loader,
-                       optimizer, scheduler, criterion, scaler)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    test(config['epoch'], model, test_loader, criterion)
-
-    # Save model
-    checkpoint_dir = 'checkpoints'
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    torch.save(checkpoint, f'{checkpoint_dir}/{run.name}.pt')
-
-    wandb.finish()
+    sweep_id = wandb.sweep(sweep_config, project="11711-hw4-ablation")
+    wandb.agent(sweep_id, sweep_train, count=1)
