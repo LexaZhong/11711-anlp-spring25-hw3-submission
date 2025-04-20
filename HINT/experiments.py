@@ -150,25 +150,62 @@ def get_dataloaders(batch_size=32) -> tuple[torch.utils.data.DataLoader, torch.u
     return train_loader, valid_loader, test_loader
 
 
-    # Model
+def get_model(config: dict, pretrain=True):
     icdcode2ancestor_dict = build_icdcode2ancestor_dict()
-    gram_model = GRAM(embedding_dim=50, icdcode2ancestor=icdcode2ancestor_dict, device=device)
-    protocol_model = Protocol_Embedding(output_dim=50, highway_num=3, device=device)
+    mpnn_model = MPNN(mpnn_hidden_size=config['dim'],
+                      mpnn_depth=config['mpnn_depth'],
+                      device=device)
+    gram_model = GRAM(embedding_dim=config['dim'],
+                      icdcode2ancestor=icdcode2ancestor_dict, device=device)
+    protocol_model = Protocol_Embedding(output_dim=config['dim'],
+                                        highway_num=3,
+                                        device=device)
     model = HINTModel(molecule_encoder=mpnn_model,
                       disease_encoder=gram_model,
                       protocol_encoder=protocol_model,
                       device=device,
-                      global_embed_size=50,
-                      highway_num_layer=2,
-                      prefix_name=base_name,
-                      gnn_hidden_size=50,
-                      epoch=3,
-                      lr=1e-3)
+                      global_embed_size=config['dim'],
+                      highway_num_layer=config['n_highway'],
+                      gnn_hidden_size=config['dim'])
+
+    # Pretraining model
+    if pretrain:
+        admet_dataloader_lst = generate_admet_dataloader_lst(batch_size=32)
+        admet_trainloader_lst = [i[0] for i in admet_dataloader_lst]
+        admet_testloader_lst = [i[1] for i in admet_dataloader_lst]
+        admet_model = ADMET(molecule_encoder=mpnn_model,
+                            highway_num=config['n_highway'],
+                            device=device,
+                            epoch=3,
+                            lr=5e-4,
+                            weight_decay=0,
+                            save_name='admet_')
+        admet_model.train(admet_trainloader_lst, admet_testloader_lst)
+        model.init_pretrain(admet_model)
+        print("Initialize pretrain model")
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params}")
     print(f"Trainable parameters: {trainable_params}")
+
+    return model
+
+
+if __name__ == "__main__":
+
+    wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
+    config ={
+        'lr': 1e-3,
+        'epoch': 1,
+        'dim': 50,
+        'n_highway': 2,
+        'mpnn_depth': 3,
+        'device': device,
+    }
+
+    train_loader, valid_loader, test_loader = get_dataloaders()
+    model = get_model(config)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
     criterion = nn.BCEWithLogitsLoss()
@@ -177,9 +214,16 @@ def get_dataloaders(batch_size=32) -> tuple[torch.utils.data.DataLoader, torch.u
     run = wandb.init(
         project="11711-hw4",  # Project should be created in your wandb account
         config=config,  # Wandb Config for your run
-        reinit=True,  # Allows reinitalizing runs when you re-run this cell
+        reinit='finish_previous',  # Allows reinitalizing runs when you re-run this cell
         #id     = "y28t31uz", ### Insert specific run id here if you want to resume a previous run
         #resume = "must", ### You need this to resume previous runs, but comment out reinit = True when using this
     )
-    train(config['epoch'], model, train_loader, valid_loader, test_loader,
-          optimizer, criterion, scaler)
+
+    checkpoint = train(config['epoch'], model,
+                       train_loader, valid_loader, test_loader,
+                       optimizer, criterion, scaler)
+    checkpoint_dir = 'checkpoints'
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    torch.save(checkpoint, f'{checkpoint_dir}/{run.name}.pt')
+
+    wandb.finish()
