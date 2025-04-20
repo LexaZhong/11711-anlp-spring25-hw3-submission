@@ -1,5 +1,7 @@
+import argparse
 import os
 
+import numpy as np
 import pandas as pd
 import torch
 from dataloader import (csv_three_feature_2_dataloader,
@@ -15,6 +17,10 @@ from torch import nn
 from tqdm import tqdm
 
 import wandb
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--base_name', type=str)
+args = parser.parse_args()
 
 device = ('cuda' if torch.cuda.is_available() else
           'mps' if torch.backends.mps.is_available() else
@@ -77,7 +83,11 @@ def eval_one_epoch(epoch: int, model, dataloader, criterion, desc='Eval') -> tup
     return val_loss, roc_auc, pr_auc, accuracy, b_accuracy, f1, precision, recall
 
 
-def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer, criterion, scaler):
+def train(epochs: int, model, train_loader, valid_loader, test_loader,
+          optimizer, scheduler, criterion, scaler) -> dict:
+    best_val_loss = np.inf
+    checkpoint = {}
+
     for epoch in tqdm(range(epochs), desc='In progress...'):
         train_loss = train_one_epoch(epoch, model, train_loader, optimizer, criterion, scaler)
 
@@ -85,6 +95,9 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
          accuracy, b_accuracy,
          f1, precision, recall) = eval_one_epoch(epoch, model, valid_loader, criterion)
 
+        scheduler.step(val_loss)
+
+        # Log epoch results
         wandb.log({
             'train_loss': train_loss,
             'val_loss': val_loss,
@@ -97,7 +110,8 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
             'val_recall': recall
         })
 
-        if epoch > 0 and epoch % 5 == 0:
+        # Test every 5 epochs
+        if epoch > 0 and (epoch+1) % 5 == 0:
             (test_loss, roc_auc, pr_auc,
              accuracy, b_accuracy,
              f1, precision, recall) = eval_one_epoch(epoch, model, test_loader, criterion, desc='Test')
@@ -112,112 +126,127 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
                 'test_recall': recall
             })
 
+        # Check if the current model is the best
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+            }
+            print(f"Best model at epoch {epoch} with val_loss: {val_loss:.4f}")
 
-class Network(torch.nn.Module):
-
-    def __init__(self, molecule_encoder, disease_encoder, protocol_encoder):
-
-        super(Network, self).__init__()
-        self.molecule_encoder = molecule_encoder
-        self.disease_encoder = disease_encoder
-        self.protocol_encoder = protocol_encoder
-        self.model = torch.nn.Sequential(
-            torch.nn.Linear(150, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 1)
-        )
-
-    def forward_get_three_encoders(self, smiles_lst2, icdcode_lst3, criteria_lst):
-        molecule_embed = self.molecule_encoder.forward_smiles_lst_lst(smiles_lst2)
-        icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
-        protocol_embed = self.protocol_encoder.forward(criteria_lst)
-        return molecule_embed, icd_embed, protocol_embed
-
-    def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
-        molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(
-            smiles_lst2, icdcode_lst3, criteria_lst)
-        x = torch.cat([molecule_embed, icd_embed, protocol_embed], dim=-1)
-        out = self.model(x)
-        return out
+    return checkpoint
 
 
-if __name__ == "__main__":
-    device = ('cuda' if torch.cuda.is_available() else
-              'mps' if torch.backends.mps.is_available() else
-              'cpu')
-
-    # Set wandb
-    wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
-    config ={
-        'lr': 1e-3,
-        'epoch': 30,
-        'device': device,
-    }
-
-    # Set data
-    base_name = 'phase_II'  # 'toy', 'phase_I', 'phase_II', 'phase_III', 'indication'
+def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     datafolder = "data"
-    train_file = os.path.join(datafolder, base_name + '_train.csv')
-    valid_file = os.path.join(datafolder, base_name + '_valid.csv')
-    test_file = os.path.join(datafolder, base_name + '_test.csv')
-
-    # Pretrain
-    mpnn_model = MPNN(mpnn_hidden_size=50, mpnn_depth=3, device=device)
-
-    # Load data
-    EMBEDDING_PATH = "data/icd2embedding.pkl"
-    if EMBEDDING_PATH == 'data/icd2embedding.pkl':
-        input_dim = 3072
-    else:
-        input_dim = 768
+    train_file = os.path.join(datafolder, args.base_name + '_train.csv')
+    valid_file = os.path.join(datafolder, args.base_name + '_valid.csv')
+    test_file = os.path.join(datafolder, args.base_name + '_test.csv')
     train_loader = csv_three_feature_2_dataloader(train_file, shuffle=True,
-                                                  batch_size=32, embedding_path=EMBEDDING_PATH ,num_workers=4)
+                                                  batch_size=config['batch_size'],
+                                                  embedding_path=config['embedding_path'],
+                                                  num_workers=4)
     valid_loader = csv_three_feature_2_dataloader(valid_file, shuffle=False,
-                                                  batch_size=32,embedding_path=EMBEDDING_PATH , num_workers=2)
+                                                  batch_size=config['batch_size'],
+                                                  embedding_path=config['embedding_path'],
+                                                  num_workers=2)
     test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False,
-                                                 batch_size=32,embedding_path=EMBEDDING_PATH , num_workers=2)
+                                                 batch_size=config['batch_size'],
+                                                 embedding_path=config['embedding_path'],
+                                                 num_workers=2)
+    return train_loader, valid_loader, test_loader
 
-    # Model
+
+def get_model(config: dict, pretrain=True):
     icdcode2ancestor_dict = build_icdcode2ancestor_dict()
-    gram_model = GRAM(embedding_dim=50, icdcode2ancestor=icdcode2ancestor_dict, device=device)
-    protocol_model = Protocol_Embedding(input_dim = input_dim,output_dim=50, highway_num=3, device=device)
+    mpnn_model = MPNN(mpnn_hidden_size=config['output_dim'],
+                      mpnn_depth=config['mpnn_depth'],
+                      device=device)
+    gram_model = GRAM(embedding_dim=config['output_dim'],
+                      icdcode2ancestor=icdcode2ancestor_dict, device=device)
+    protocol_model = Protocol_Embedding(input_dim=config['input_dim'],
+                                        output_dim=config['output_dim'],
+                                        device=device)
     model = HINTModel(molecule_encoder=mpnn_model,
                       disease_encoder=gram_model,
                       protocol_encoder=protocol_model,
                       device=device,
-                      global_embed_size=50,
-                      highway_num_layer=2,
-                      prefix_name=base_name,
-                      gnn_hidden_size=50,
-                      epoch=3,
-                      lr=1e-3)
-    model = Network(
-        molecule_encoder=mpnn_model,
-        disease_encoder=gram_model,
-        protocol_encoder=protocol_model,
-    ).to(device)
+                      global_embed_size=config['output_dim'],
+                      highway_num_layer=config['n_highway'],
+                      gnn_hidden_size=config['output_dim'])
+
+    # Pretraining model
+    if pretrain:
+        admet_dataloader_lst = generate_admet_dataloader_lst(batch_size=32)
+        admet_trainloader_lst = [i[0] for i in admet_dataloader_lst]
+        admet_testloader_lst = [i[1] for i in admet_dataloader_lst]
+        admet_model = ADMET(molecule_encoder=mpnn_model,
+                            highway_num=config['n_highway'],
+                            device=device,
+                            epoch=config['pre_epoch'],
+                            lr=5e-4,
+                            weight_decay=0,
+                            save_name='admet_')
+        admet_model.train(admet_trainloader_lst, admet_testloader_lst)
+        model.init_pretrain(admet_model)
+        print("Initialize pretrain model")
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Total parameters: {total_params}")
     print(f"Trainable parameters: {trainable_params}")
 
+    return model
+
+
+if __name__ == "__main__":
+
+    wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
+    config ={
+        'batch_size': 32,
+        'lr': 1e-3,
+        'scheduler_factor': 0.8,
+        'scheduler_patience': 2,
+        'epoch': 1,
+        'pre_epoch': 10,
+        'output_dim': 50,
+        'n_highway': 2,
+        'mpnn_depth': 3,
+        'embedding_path': "data/icd2embedding.pkl",
+        'device': device,
+    }
+    if config['embedding_path'] == 'data/icd2embedding.pkl':
+        config['input_dim'] = 3072
+    else:
+        config['input_dim'] = 768
+
+    train_loader, valid_loader, test_loader = get_dataloaders(config)
+    model = get_model(config)
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
+                                                           factor=config['scheduler_factor'],
+                                                           patience=config['scheduler_patience'],
+                                                           min_lr=1e-5)
     criterion = nn.BCEWithLogitsLoss()
     scaler = torch.GradScaler(device)
 
     run = wandb.init(
-        project="11711-hw4",  # Project should be created in your wandb account
-        config=config,  # Wandb Config for your run
-        reinit=True,  # Allows reinitalizing runs when you re-run this cell
-        #id     = "y28t31uz", ### Insert specific run id here if you want to resume a previous run
-        #resume = "must", ### You need this to resume previous runs, but comment out reinit = True when using this
+        project="11711-hw4",
+        config=config,
+        reinit='finish_previous',
+        #id     = "y28t31uz",
+        #resume = "must",
     )
-    train(config['epoch'], model, train_loader, valid_loader, test_loader,
-          optimizer, criterion, scaler)
+
+    checkpoint = train(config['epoch'], model,
+                       train_loader, valid_loader, test_loader,
+                       optimizer, scheduler, criterion, scaler)
+    checkpoint_dir = 'checkpoints'
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    torch.save(checkpoint, f'{checkpoint_dir}/{run.name}.pt')
+
+    wandb.finish()

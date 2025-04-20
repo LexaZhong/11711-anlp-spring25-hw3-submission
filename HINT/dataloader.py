@@ -11,11 +11,11 @@ import csv
 import os
 
 import torch
-from molecule_encode import smiles2mpnnfeature
 from protocol_encode import load_sentence_2_vec, protocol2feature
 from torch.utils import data
 from torch.utils.data.dataloader import default_collate
-from HINT.molecule_encode import smiles2mpnnfeature
+
+sentence2vec = load_sentence_2_vec()
 
 
 class Trial_Dataset(data.Dataset):
@@ -88,8 +88,8 @@ def icdcode_text_2_lst_of_lst(text):
 def trial_collate_fn(sentence2vec=None, embedding_path=None):
     def collate_fn(x):
         nonlocal sentence2vec
-        nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
-        label_vec = default_collate([int(i[1]) for i in x])  ### shape n, 
+        nctid_lst = [i[0] for i in x]  # ['NCT00604461', ..., 'NCT00788957']
+        label_vec = default_collate([int(i[1]) for i in x])  # shape n,
         smiles_lst = [smiles_txt_to_lst(i[2]) for i in x]
         icdcode_lst = [icdcode_text_2_lst_of_lst(i[3]) for i in x]
         if sentence2vec is None and embedding_path is not None:
@@ -105,10 +105,10 @@ def trial_collate_fn(sentence2vec=None, embedding_path=None):
 def trial_complete_collate_fn(sentence2vec=None, embedding_path=None):
     def collate_fn(x):
         nonlocal sentence2vec
-        nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
+        nctid_lst = [i[0] for i in x]  # ['NCT00604461', ..., 'NCT00788957']
         status_lst = [i[1] for i in x]
         why_stop_lst = [i[2] for i in x]
-        label_vec = default_collate([int(i[3]) for i in x])  ### shape n, 
+        label_vec = default_collate([int(i[3]) for i in x])  # shape n,
         phase_lst = [i[4] for i in x]
         diseases_lst = [i[5] for i in x]
         icdcode_lst = [icdcode_text_2_lst_of_lst(i[6]) for i in x]
@@ -124,7 +124,7 @@ def trial_complete_collate_fn(sentence2vec=None, embedding_path=None):
     return collate_fn
 
 
-def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size,embedding_path, num_workers):
+def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size, embedding_path, num_workers):
     with open(csvfile, 'r') as csvfile:
         rows = list(csv.reader(csvfile, delimiter=','))[1:]
     # nctid,status,why_stop,label,phase,diseases,icdcodes,drugs,smiless,criteria
@@ -141,7 +141,7 @@ def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size,embedding_path, 
     return data_loader
 
 
-def csv_three_feature_2_complete_dataloader(csvfile, shuffle, batch_size,embedding_path):
+def csv_three_feature_2_complete_dataloader(csvfile, shuffle, batch_size, embedding_path):
     with open(csvfile, 'r') as csvfile:
         rows = list(csv.reader(csvfile, delimiter=','))[1:]
     nctid_lst = [row[0] for row in rows]
