@@ -48,13 +48,13 @@ def train_one_epoch(epoch: int, model, dataloader, optimizer, criterion, scaler)
     return train_loss
 
 
-def eval_one_epoch(epoch: int, model, dataloader, criterion) -> tuple:
+def eval_one_epoch(epoch: int, model, dataloader, criterion, desc='Eval') -> tuple:
     model.eval()  # set model in evaluation mode
     val_loss = 0.0
     y_true, y_score = [], []
 
     for nctid_lst, label_vec, smiles_lst2, icdcode_lst3, criteria_lst in tqdm(dataloader,
-                                                                              desc=f"Epoch {epoch:02} Eval "):
+                                                                              desc=f"Epoch {epoch:02} {desc} "):
         labels = label_vec.to(device).float()
         # Forward Propagation
         with torch.autocast(device_type='cuda', dtype=torch.float16):
@@ -77,7 +77,7 @@ def eval_one_epoch(epoch: int, model, dataloader, criterion) -> tuple:
     return val_loss, roc_auc, pr_auc, accuracy, b_accuracy, f1, precision, recall
 
 
-def train(epochs: int, model, train_loader, valid_loader, optimizer, criterion, scaler):
+def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer, criterion, scaler):
     for epoch in tqdm(range(epochs), desc='In progress...'):
         train_loss = train_one_epoch(epoch, model, train_loader, optimizer, criterion, scaler)
 
@@ -97,6 +97,55 @@ def train(epochs: int, model, train_loader, valid_loader, optimizer, criterion, 
             'val_recall': recall
         })
 
+        if epoch > 0 and epoch % 5 == 0:
+            (test_loss, roc_auc, pr_auc,
+             accuracy, b_accuracy,
+             f1, precision, recall) = eval_one_epoch(epoch, model, test_loader, criterion, desc='Test')
+            wandb.log({
+                'test_loss': test_loss,
+                'test_roc_auc': roc_auc,
+                'test_pr_auc': pr_auc,
+                'test_accuracy': accuracy,
+                'test_balanced_accuracy': b_accuracy,
+                'test_f1': f1,
+                'test_precision': precision,
+                'test_recall': recall
+            })
+
+
+class Network(torch.nn.Module):
+
+    def __init__(self, molecule_encoder, disease_encoder, protocol_encoder):
+
+        super(Network, self).__init__()
+        self.molecule_encoder = molecule_encoder
+        self.disease_encoder = disease_encoder
+        self.protocol_encoder = protocol_encoder
+        self.model = torch.nn.Sequential(
+            torch.nn.Linear(150, 2048),
+            torch.nn.ReLU(),
+            torch.nn.Linear(2048, 2048),
+            torch.nn.ReLU(),
+            torch.nn.Linear(2048, 2048),
+            torch.nn.ReLU(),
+            torch.nn.Linear(2048, 512),
+            torch.nn.ReLU(),
+            torch.nn.Linear(512, 1)
+        )
+
+    def forward_get_three_encoders(self, smiles_lst2, icdcode_lst3, criteria_lst):
+        molecule_embed = self.molecule_encoder.forward_smiles_lst_lst(smiles_lst2)
+        icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
+        protocol_embed = self.protocol_encoder.forward(criteria_lst)
+        return molecule_embed, icd_embed, protocol_embed
+
+    def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
+        molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(
+            smiles_lst2, icdcode_lst3, criteria_lst)
+        x = torch.cat([molecule_embed, icd_embed, protocol_embed], dim=-1)
+        out = self.model(x)
+        return out
+
 
 if __name__ == "__main__":
     device = ('cuda' if torch.cuda.is_available() else
@@ -107,20 +156,12 @@ if __name__ == "__main__":
     wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
     config ={
         'lr': 1e-3,
-        'epoch': 10,
+        'epoch': 30,
         'device': device,
     }
 
-    run = wandb.init(
-        project="11711-hw4",  # Project should be created in your wandb account
-        config=config,  # Wandb Config for your run
-        reinit=True,  # Allows reinitalizing runs when you re-run this cell
-        #id     = "y28t31uz", ### Insert specific run id here if you want to resume a previous run
-        #resume = "must", ### You need this to resume previous runs, but comment out reinit = True when using this
-    )
-
     # Set data
-    base_name = 'phase_I'  # 'toy', 'phase_I', 'phase_II', 'phase_III', 'indication'
+    base_name = 'phase_II'  # 'toy', 'phase_I', 'phase_II', 'phase_III', 'indication'
     datafolder = "data"
     train_file = os.path.join(datafolder, base_name + '_train.csv')
     valid_file = os.path.join(datafolder, base_name + '_valid.csv')
@@ -151,6 +192,11 @@ if __name__ == "__main__":
                       gnn_hidden_size=50,
                       epoch=3,
                       lr=1e-3)
+    model = Network(
+        molecule_encoder=mpnn_model,
+        disease_encoder=gram_model,
+        protocol_encoder=protocol_model,
+    ).to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -160,4 +206,13 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
     criterion = nn.BCEWithLogitsLoss()
     scaler = torch.GradScaler(device)
-    # train(config['epoch'], model, train_loader, valid_loader, optimizer, criterion, scaler)
+
+    run = wandb.init(
+        project="11711-hw4",  # Project should be created in your wandb account
+        config=config,  # Wandb Config for your run
+        reinit=True,  # Allows reinitalizing runs when you re-run this cell
+        #id     = "y28t31uz", ### Insert specific run id here if you want to resume a previous run
+        #resume = "must", ### You need this to resume previous runs, but comment out reinit = True when using this
+    )
+    train(config['epoch'], model, train_loader, valid_loader, test_loader,
+          optimizer, criterion, scaler)
