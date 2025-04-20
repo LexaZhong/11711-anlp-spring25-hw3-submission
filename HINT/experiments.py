@@ -82,7 +82,10 @@ def eval_one_epoch(epoch: int, model, dataloader, criterion, desc='Eval') -> tup
     return val_loss, roc_auc, pr_auc, accuracy, b_accuracy, f1, precision, recall
 
 
-def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer, criterion, scaler):
+def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer, criterion, scaler) -> dict:
+    best_val_loss = np.inf
+    checkpoint = {}
+
     for epoch in tqdm(range(epochs), desc='In progress...'):
         train_loss = train_one_epoch(epoch, model, train_loader, optimizer, criterion, scaler)
 
@@ -102,7 +105,8 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
             'val_recall': recall
         })
 
-        if epoch > 0 and epoch % 5 == 0:
+        # Test every 5 epochs
+        if epoch > 0 and (epoch+1) % 5 == 0:
             (test_loss, roc_auc, pr_auc,
              accuracy, b_accuracy,
              f1, precision, recall) = eval_one_epoch(epoch, model, test_loader, criterion, desc='Test')
@@ -117,56 +121,19 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
                 'test_recall': recall
             })
 
+        # Check if the current model is the best
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': model.state_dict()
+            }
+            print(f"Best model at epoch {epoch} with val_loss: {val_loss:.4f}")
 
-# class Network(torch.nn.Module):
-
-#     def __init__(self, molecule_encoder, disease_encoder, protocol_encoder):
-
-#         super(Network, self).__init__()
-#         self.molecule_encoder = molecule_encoder
-#         self.disease_encoder = disease_encoder
-#         self.protocol_encoder = protocol_encoder
-#         self.model = torch.nn.Sequential(
-#             torch.nn.Linear(150, 2048),
-#             torch.nn.ReLU(),
-#             torch.nn.Linear(2048, 2048),
-#             torch.nn.ReLU(),
-#             torch.nn.Linear(2048, 2048),
-#             torch.nn.ReLU(),
-#             torch.nn.Linear(2048, 512),
-#             torch.nn.ReLU(),
-#             torch.nn.Linear(512, 1)
-#         )
-
-#     def forward_get_three_encoders(self, smiles_lst2, icdcode_lst3, criteria_lst):
-#         molecule_embed = self.molecule_encoder.forward_smiles_lst_lst(smiles_lst2)
-#         icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
-#         protocol_embed = self.protocol_encoder.forward(criteria_lst)
-#         return molecule_embed, icd_embed, protocol_embed
-
-#     def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
-#         molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(
-#             smiles_lst2, icdcode_lst3, criteria_lst)
-#         x = torch.cat([molecule_embed, icd_embed, protocol_embed], dim=-1)
-#         out = self.model(x)
-#         return out
+    return checkpoint
 
 
-if __name__ == "__main__":
-    device = ('cuda' if torch.cuda.is_available() else
-              'mps' if torch.backends.mps.is_available() else
-              'cpu')
-
-    # Set wandb
-    wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
-    config ={
-        'lr': 1e-3,
-        'epoch': 30,
-        'device': device,
-    }
-
-    # Set data
-    base_name = 'phase_II'  # 'toy', 'phase_I', 'phase_II', 'phase_III', 'indication'
+def get_dataloaders(batch_size=32) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
     datafolder = "data"
     train_file = os.path.join(datafolder, base_name + '_train.csv')
     valid_file = os.path.join(datafolder, base_name + '_valid.csv')
