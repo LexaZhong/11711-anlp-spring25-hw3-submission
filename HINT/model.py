@@ -484,8 +484,8 @@ class HINTModel(HINT_nograph):
                  device,
                  global_embed_size,
                  highway_num_layer,
-                 prefix_name,
                  gnn_hidden_size,
+                 prefix_name='base',
                  epoch=20,
                  lr=3e-4,
                  weight_decay=0,):
