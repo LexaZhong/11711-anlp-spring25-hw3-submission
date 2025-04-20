@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 
 import numpy as np
@@ -143,6 +144,7 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader,
 
 
 def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+    print(f'Read data {args.base_name}')
     datafolder = "data"
     train_file = os.path.join(datafolder, args.base_name + '_train.csv')
     valid_file = os.path.join(datafolder, args.base_name + '_valid.csv')
@@ -211,20 +213,21 @@ def get_model(config: dict, pretrain=True):
 if __name__ == "__main__":
 
     wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
+
     config ={
         'batch_size': 32,
         'lr': 1e-3,
         'scheduler_factor': 0.8,
-        'scheduler_patience': 2,
-        'epoch': 1,
+        'scheduler_patience': 3,
+        'epoch': 50,
         'pre_epoch': 10,
         'output_dim': 50,
-        'n_highway': 2,
-        'mpnn_depth': 3,
-        'embedding_path': "data/icd2embedding.pkl",
+        'n_highway': 5,
+        'mpnn_depth': 5,
+        'embedding_path': "embeddings/icd2embedding.pkl",
         'device': device,
     }
-    if config['embedding_path'] == 'data/icd2embedding.pkl':
+    if config['embedding_path'] == 'embeddings/icd2embedding.pkl':
         config['input_dim'] = 3072
     else:
         config['input_dim'] = 768
@@ -241,7 +244,7 @@ if __name__ == "__main__":
     scaler = torch.GradScaler(device)
 
     run = wandb.init(
-        project="11711-hw4",
+        project="11711-hw4-ablation",
         config=config,
         reinit='finish_previous',
         #id     = "y28t31uz",
