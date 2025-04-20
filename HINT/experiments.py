@@ -259,7 +259,7 @@ if __name__ == "__main__":
             'n_highway': {
                 'distribution': 'int_uniform',
                 'min': 2,
-                'max': 10,
+                'max': 6,
             },
             'mpnn_depth': {
                 'distribution': 'int_uniform',
