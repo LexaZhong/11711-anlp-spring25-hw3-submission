@@ -2,12 +2,6 @@ import os
 
 import pandas as pd
 import torch
-from dataloader import (csv_three_feature_2_dataloader,
-                        generate_admet_dataloader_lst)
-from icdcode_encode import GRAM, build_icdcode2ancestor_dict
-from model import HINTModel
-from molecule_encode import ADMET, MPNN
-from protocol_encode import Protocol_Embedding
 from sklearn.metrics import (accuracy_score, average_precision_score,
                              balanced_accuracy_score, f1_score,
                              precision_score, recall_score, roc_auc_score)
@@ -15,6 +9,12 @@ from torch import nn
 from tqdm import tqdm
 
 import wandb
+from dataloader import (csv_three_feature_2_dataloader,
+                        generate_admet_dataloader_lst)
+from icdcode_encode import GRAM, build_icdcode2ancestor_dict
+from model import HINTModel
+from molecule_encode import ADMET, MPNN
+from protocol_encode import Protocol_Embedding
 
 device = ('cuda' if torch.cuda.is_available() else
           'mps' if torch.backends.mps.is_available() else
@@ -113,38 +113,38 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
             })
 
 
-class Network(torch.nn.Module):
+# class Network(torch.nn.Module):
 
-    def __init__(self, molecule_encoder, disease_encoder, protocol_encoder):
+#     def __init__(self, molecule_encoder, disease_encoder, protocol_encoder):
 
-        super(Network, self).__init__()
-        self.molecule_encoder = molecule_encoder
-        self.disease_encoder = disease_encoder
-        self.protocol_encoder = protocol_encoder
-        self.model = torch.nn.Sequential(
-            torch.nn.Linear(150, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 2048),
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 512),
-            torch.nn.ReLU(),
-            torch.nn.Linear(512, 1)
-        )
+#         super(Network, self).__init__()
+#         self.molecule_encoder = molecule_encoder
+#         self.disease_encoder = disease_encoder
+#         self.protocol_encoder = protocol_encoder
+#         self.model = torch.nn.Sequential(
+#             torch.nn.Linear(150, 2048),
+#             torch.nn.ReLU(),
+#             torch.nn.Linear(2048, 2048),
+#             torch.nn.ReLU(),
+#             torch.nn.Linear(2048, 2048),
+#             torch.nn.ReLU(),
+#             torch.nn.Linear(2048, 512),
+#             torch.nn.ReLU(),
+#             torch.nn.Linear(512, 1)
+#         )
 
-    def forward_get_three_encoders(self, smiles_lst2, icdcode_lst3, criteria_lst):
-        molecule_embed = self.molecule_encoder.forward_smiles_lst_lst(smiles_lst2)
-        icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
-        protocol_embed = self.protocol_encoder.forward(criteria_lst)
-        return molecule_embed, icd_embed, protocol_embed
+#     def forward_get_three_encoders(self, smiles_lst2, icdcode_lst3, criteria_lst):
+#         molecule_embed = self.molecule_encoder.forward_smiles_lst_lst(smiles_lst2)
+#         icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
+#         protocol_embed = self.protocol_encoder.forward(criteria_lst)
+#         return molecule_embed, icd_embed, protocol_embed
 
-    def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
-        molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(
-            smiles_lst2, icdcode_lst3, criteria_lst)
-        x = torch.cat([molecule_embed, icd_embed, protocol_embed], dim=-1)
-        out = self.model(x)
-        return out
+#     def forward(self, smiles_lst2, icdcode_lst3, criteria_lst):
+#         molecule_embed, icd_embed, protocol_embed = self.forward_get_three_encoders(
+#             smiles_lst2, icdcode_lst3, criteria_lst)
+#         x = torch.cat([molecule_embed, icd_embed, protocol_embed], dim=-1)
+#         out = self.model(x)
+#         return out
 
 
 if __name__ == "__main__":
@@ -192,11 +192,6 @@ if __name__ == "__main__":
                       gnn_hidden_size=50,
                       epoch=3,
                       lr=1e-3)
-    model = Network(
-        molecule_encoder=mpnn_model,
-        disease_encoder=gram_model,
-        protocol_encoder=protocol_model,
-    ).to(device)
 
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
