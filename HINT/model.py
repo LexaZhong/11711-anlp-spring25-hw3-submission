@@ -56,7 +56,7 @@ class Interaction(nn.Sequential):
 	def forward_get_three_encoders(self, smiles_lst2, icdcode_lst3, criteria_lst):
 		molecule_embed = self.molecule_encoder.forward_smiles_lst_lst(smiles_lst2)
 		icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
-		protocol_embed = self.protocol_encoder.forward(criteria_lst)
+		protocol_embed = self.protocol_encoder.forward(criteria_lst) #change to read preprocessing embedding
 		return molecule_embed, icd_embed, protocol_embed	
 
 	def forward_encoder_2_interaction(self, molecule_embed, icd_embed, protocol_embed):
@@ -113,7 +113,7 @@ class Interaction(nn.Sequential):
 			label_lst.extend([i.item() for i in label])
 			smiles_lst2.extend(smiles)
 			icdcode_lst3.extend(icdcode)
-			criteria_lst.extend(criteria)
+			criteria_lst.extend(criteria) #change it to nctid list ? so we could map to the embedding
 		length = len(nctid_lst)
 		assert length == len(smiles_lst2) and length == len(icdcode_lst3)
 		return nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst, length 

@@ -12,7 +12,7 @@ sys.path.append('.')
 from HINT.dataloader import csv_three_feature_2_dataloader, generate_admet_dataloader_lst, csv_three_feature_2_complete_dataloader
 from HINT.molecule_encode import MPNN, ADMET 
 from HINT.icdcode_encode import GRAM, build_icdcode2ancestor_dict
-from HINT.protocol_encode import Protocol_Embedding
+from HINT.protocalGPT_encode import Protocol_Embedding
 from HINT.model import HINTModel
 device = torch.device("cpu")
 if not os.path.exists("figure"):
