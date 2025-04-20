@@ -39,7 +39,7 @@ class Interaction(nn.Sequential):
         self.weight_decay = weight_decay
         self.save_name = prefix_name + '_interaction'
 
-        self.f = F.relu
+        self.f = F.gelu
         self.loss = nn.BCEWithLogitsLoss()
 
         # NN
@@ -125,8 +125,6 @@ class Interaction(nn.Sequential):
         length = len(nctid_lst)
         assert length == len(smiles_lst2) and length == len(icdcode_lst3)
         return nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst, length
-
-
 
     def generate_predict(self, dataloader):
         whole_loss = 0
@@ -403,7 +401,7 @@ class HINT_nograph(Interaction):
 		self.weight_decay = weight_decay
 		self.save_name = save_name
 
-		self.f = F.relu
+		self.f = F.gelu
 		self.loss = nn.BCEWithLogitsLoss()
 
 		##### NN
