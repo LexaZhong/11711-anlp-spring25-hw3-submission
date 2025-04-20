@@ -12,7 +12,7 @@ sys.path.append('.')
 from HINT.dataloader import csv_three_feature_2_dataloader, generate_admet_dataloader_lst, csv_three_feature_2_complete_dataloader
 from HINT.molecule_encode import MPNN, ADMET 
 from HINT.icdcode_encode import GRAM, build_icdcode2ancestor_dict
-from HINT.protocol_encode import Protocol_Embedding
+from HINT.protocalGPT_encode import Protocol_Embedding
 from HINT.model import Interaction, HINT_nograph, HINTModel
 device = torch.device("cpu")
 if not os.path.exists("figure"):
@@ -47,7 +47,7 @@ test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False, batch_siz
 
 icdcode2ancestor_dict = build_icdcode2ancestor_dict()
 gram_model = GRAM(embedding_dim = 50, icdcode2ancestor = icdcode2ancestor_dict, device = device)
-protocol_model = Protocol_Embedding(output_dim = 50, highway_num=3, device = device)
+protocol_model = Protocol_Embedding(output_dim = 50, highway_num=3, device = device) #
 
 
 

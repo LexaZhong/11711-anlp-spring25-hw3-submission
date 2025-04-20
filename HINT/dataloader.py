@@ -15,6 +15,8 @@ from molecule_encode import smiles2mpnnfeature
 from protocol_encode import load_sentence_2_vec, protocol2feature
 from torch.utils import data
 from torch.utils.data.dataloader import default_collate
+from HINT.molecule_encode import smiles2mpnnfeature
+from HINT.protocolGPT_encode import load_sentence_2_vec
 
 sentence2vec = load_sentence_2_vec()
 
@@ -87,26 +89,26 @@ def icdcode_text_2_lst_of_lst(text):
 
 
 def trial_collate_fn(x):
-    nctid_lst = [i[0] for i in x]  # ['NCT00604461', ..., 'NCT00788957']
-    label_vec = default_collate([int(i[1]) for i in x])  # shape n,
-    smiles_lst = [smiles_txt_to_lst(i[2]) for i in x]
-    icdcode_lst = [icdcode_text_2_lst_of_lst(i[3]) for i in x]
-    criteria_lst = [protocol2feature(i[4], sentence2vec) for i in x]
-    return [nctid_lst, label_vec, smiles_lst, icdcode_lst, criteria_lst]
+	nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
+	label_vec = default_collate([int(i[1]) for i in x])  ### shape n, 
+	smiles_lst = [smiles_txt_to_lst(i[2]) for i in x]
+	icdcode_lst = [icdcode_text_2_lst_of_lst(i[3]) for i in x]
+	criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
+	return [nctid_lst, label_vec, smiles_lst, icdcode_lst, criteria_lst]
 
 
 def trial_complete_collate_fn(x):
-    nctid_lst = [i[0] for i in x]  # ['NCT00604461', ..., 'NCT00788957']
-    status_lst = [i[1] for i in x]
-    why_stop_lst = [i[2] for i in x]
-    label_vec = default_collate([int(i[3]) for i in x])  # shape n,
-    phase_lst = [i[4] for i in x]
-    diseases_lst = [i[5] for i in x]
-    icdcode_lst = [icdcode_text_2_lst_of_lst(i[6]) for i in x]
-    drugs_lst = [i[7] for i in x]
-    smiles_lst = [smiles_txt_to_lst(i[8]) for i in x]
-    criteria_lst = [protocol2feature(i[9], sentence2vec) for i in x]
-    return [nctid_lst, status_lst, why_stop_lst, label_vec, phase_lst, diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst]
+	nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
+	status_lst = [i[1] for i in x]
+	why_stop_lst = [i[2] for i in x]
+	label_vec = default_collate([int(i[3]) for i in x])  ### shape n, 
+	phase_lst = [i[4] for i in x]
+	diseases_lst = [i[5] for i in x]
+	icdcode_lst = [icdcode_text_2_lst_of_lst(i[6]) for i in x]
+	drugs_lst = [i[7] for i in x]
+	smiles_lst = [smiles_txt_to_lst(i[8]) for i in x]
+	criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
+	return [nctid_lst, status_lst, why_stop_lst, label_vec, phase_lst, diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst]
 
 
 def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size, num_workers):

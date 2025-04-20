@@ -62,6 +62,11 @@ class Interaction(nn.Sequential):
         icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
         protocol_embed = self.protocol_encoder.forward(criteria_lst)
         return molecule_embed, icd_embed, protocol_embed
+	def forward_get_three_encoders(self, smiles_lst2, icdcode_lst3, criteria_lst):
+		molecule_embed = self.molecule_encoder.forward_smiles_lst_lst(smiles_lst2)
+		icd_embed = self.disease_encoder.forward_code_lst3(icdcode_lst3)
+		protocol_embed = self.protocol_encoder.forward(criteria_lst) #change to read preprocessing embedding
+		return molecule_embed, icd_embed, protocol_embed	
 
     def forward_encoder_2_interaction(self, molecule_embed, icd_embed, protocol_embed):
         encoder_embedding = torch.cat([molecule_embed, icd_embed, protocol_embed], 1)
@@ -114,29 +119,31 @@ class Interaction(nn.Sequential):
         label_1_ratio = sum(label_all) / len(label_all)
         return auc_score, f1score, prauc_score, precision, recall, accuracy, predict_1_ratio, label_1_ratio
 
-    def testloader_to_lst(self, dataloader):
-        nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst = [], [], [], [], []
-        for nctid, label, smiles, icdcode, criteria in dataloader:
-            nctid_lst.extend(nctid)
-            label_lst.extend([i.item() for i in label])
-            smiles_lst2.extend(smiles)
-            icdcode_lst3.extend(icdcode)
-            criteria_lst.extend(criteria)
-        length = len(nctid_lst)
-        assert length == len(smiles_lst2) and length == len(icdcode_lst3)
-        return nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst, length
+	def testloader_to_lst(self, dataloader):
+		nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst = [], [], [], [], []
+		for nctid, label, smiles, icdcode, criteria in dataloader:
+			nctid_lst.extend(nctid)
+			label_lst.extend([i.item() for i in label])
+			smiles_lst2.extend(smiles)
+			icdcode_lst3.extend(icdcode)
+			criteria_lst.extend(criteria) #change it to nctid list ? so we could map to the embedding
+		length = len(nctid_lst)
+		assert length == len(smiles_lst2) and length == len(icdcode_lst3)
+		return nctid_lst, label_lst, smiles_lst2, icdcode_lst3, criteria_lst, length 
 
-    def generate_predict(self, dataloader):
-        whole_loss = 0
-        label_all, predict_all, nctid_all = [], [], []
-        for nctid_lst, label_vec, smiles_lst2, icdcode_lst3, criteria_lst in dataloader:
-            nctid_all.extend(nctid_lst)
-            label_vec = label_vec.to(self.device)
-            output = self.forward(smiles_lst2, icdcode_lst3, criteria_lst).view(-1)
-            loss = self.loss(output, label_vec.float())
-            whole_loss += loss.item()
-            predict_all.extend([i.item() for i in torch.sigmoid(output)])
-            label_all.extend([i.item() for i in label_vec])
+
+
+	def generate_predict(self, dataloader):
+		whole_loss = 0 
+		label_all, predict_all, nctid_all = [], [], []
+		for nctid_lst, label_vec, smiles_lst2, icdcode_lst3, criteria_lst in dataloader:
+			nctid_all.extend(nctid_lst)
+			label_vec = label_vec.to(self.device)
+			output = self.forward(smiles_lst2, icdcode_lst3, criteria_lst).view(-1)  
+			loss = self.loss(output, label_vec.float())
+			whole_loss += loss.item()
+			predict_all.extend([i.item() for i in torch.sigmoid(output)])
+			label_all.extend([i.item() for i in label_vec])
 
         return whole_loss, predict_all, label_all, nctid_all
 
