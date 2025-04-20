@@ -18,6 +18,8 @@ from tqdm import tqdm
 
 import wandb
 
+logging.basicConfig(level=logging.INFO, filename='test.log', filemode='w',)
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--base_name', type=str)
 args = parser.parse_args()
@@ -157,6 +159,10 @@ def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.da
                                                  batch_size=config['batch_size'],
                                                  embedding_path=config['embedding_path'],
                                                  num_workers=2)
+    for data in test_loader:
+        logging.info(data[-1])
+        break
+
     return train_loader, valid_loader, test_loader
 
 
