@@ -48,6 +48,7 @@ class Trial_Dataset(Dataset):
         )
 
     def load_embeddings(self, embedding_path):
+        print(f'Loading embeddings from {embedding_path}')
         with open(embedding_path, 'rb') as f:
             sentence2vec = pickle.load(f)
 

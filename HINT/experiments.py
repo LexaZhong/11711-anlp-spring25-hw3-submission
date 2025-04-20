@@ -15,6 +15,7 @@ from sklearn.metrics import (accuracy_score, average_precision_score,
                              precision_score, recall_score, roc_auc_score)
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.data.dataloader import default_collate
 from tqdm import tqdm
 
 import wandb
@@ -150,7 +151,12 @@ def test(epoch, model, test_loader, criterion):
 def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
 
     def collate_fn(x):
-        return [[v[i] for v in x] for i in range(len(x[0]))]
+        nctid_lst = [i[0] for i in x]  # ['NCT00604461', ..., 'NCT00788957']
+        label_vec = default_collate([int(i[1]) for i in x])  # shape n,
+        smiles_lst = [i[2] for i in x]
+        icdcode_lst = [i[3] for i in x]
+        criteria_lst = [i[4] for i in x]
+        return [nctid_lst, label_vec, smiles_lst, icdcode_lst, criteria_lst]
 
     datafolder = "data"
     train_file = os.path.join(datafolder, args.base_name + '_train.csv')
