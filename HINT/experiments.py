@@ -1,7 +1,14 @@
 import os
 
+import numpy as np
 import pandas as pd
 import torch
+from dataloader import (csv_three_feature_2_dataloader,
+                        generate_admet_dataloader_lst)
+from icdcode_encode import GRAM, build_icdcode2ancestor_dict
+from model import HINTModel
+from molecule_encode import ADMET, MPNN
+from protocol_encode import Protocol_Embedding
 from sklearn.metrics import (accuracy_score, average_precision_score,
                              balanced_accuracy_score, f1_score,
                              precision_score, recall_score, roc_auc_score)
@@ -9,12 +16,10 @@ from torch import nn
 from tqdm import tqdm
 
 import wandb
-from dataloader import (csv_three_feature_2_dataloader,
-                        generate_admet_dataloader_lst)
-from icdcode_encode import GRAM, build_icdcode2ancestor_dict
-from model import HINTModel
-from molecule_encode import ADMET, MPNN
-from protocol_encode import Protocol_Embedding
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--base_name', type=str)
+args = parser.parse_args()
 
 device = ('cuda' if torch.cuda.is_available() else
           'mps' if torch.backends.mps.is_available() else
