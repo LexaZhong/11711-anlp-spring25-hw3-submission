@@ -226,11 +226,11 @@ if __name__ == "__main__":
     scaler = torch.GradScaler(device)
 
     run = wandb.init(
-        project="11711-hw4",  # Project should be created in your wandb account
-        config=config,  # Wandb Config for your run
-        reinit='finish_previous',  # Allows reinitalizing runs when you re-run this cell
-        #id     = "y28t31uz", ### Insert specific run id here if you want to resume a previous run
-        #resume = "must", ### You need this to resume previous runs, but comment out reinit = True when using this
+        project="11711-hw4",
+        config=config,
+        reinit='finish_previous',
+        #id     = "y28t31uz",
+        #resume = "must",
     )
 
     checkpoint = train(config['epoch'], model,
