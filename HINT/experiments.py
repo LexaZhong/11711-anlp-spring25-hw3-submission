@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 
 import numpy as np
@@ -18,8 +17,6 @@ from torch import nn
 from tqdm import tqdm
 
 import wandb
-
-logging.basicConfig(level=logging.INFO, filename='test.log', filemode='w',)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--base_name', type=str)
@@ -86,7 +83,7 @@ def eval_one_epoch(epoch: int, model, dataloader, criterion, desc='Eval') -> tup
     return val_loss, roc_auc, pr_auc, accuracy, b_accuracy, f1, precision, recall
 
 
-def train(epochs: int, model, train_loader, valid_loader, test_loader,
+def train(epochs: int, model, train_loader, valid_loader,
           optimizer, scheduler, criterion, scaler) -> dict:
     best_val_loss = np.inf
     checkpoint = {}
@@ -114,22 +111,6 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader,
             'val_recall': recall
         })
 
-        # Test every 5 epochs
-        if epoch > 0 and (epoch+1) % 5 == 0:
-            (test_loss, roc_auc, pr_auc,
-             accuracy, b_accuracy,
-             f1, precision, recall) = eval_one_epoch(epoch, model, test_loader, criterion, desc='Test')
-            wandb.log({
-                'test_loss': test_loss,
-                'test_roc_auc': roc_auc,
-                'test_pr_auc': pr_auc,
-                'test_accuracy': accuracy,
-                'test_balanced_accuracy': b_accuracy,
-                'test_f1': f1,
-                'test_precision': precision,
-                'test_recall': recall
-            })
-
         # Check if the current model is the best
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -141,11 +122,31 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader,
             }
             print(f"Best model at epoch {epoch} with val_loss: {val_loss:.4f}")
 
+        # End training if no more improvement
+        if (val_loss > best_val_loss and
+                epoch - checkpoint.get('epoch', 0) > 5):
+            print(f"Early stopping at epoch {epoch} with val_loss: {val_loss:.4f}")
+            break
+
     return checkpoint
 
 
+def test(epoch, model, test_loader, criterion):
+    (test_loss, roc_auc, pr_auc,
+     accuracy, b_accuracy,
+     f1, precision, recall) = eval_one_epoch(epoch, model, test_loader, criterion, desc='Test')
+    wandb.log({
+        'test_roc_auc': roc_auc,
+        'test_pr_auc': pr_auc,
+        'test_accuracy': accuracy,
+        'test_balanced_accuracy': b_accuracy,
+        'test_f1': f1,
+        'test_precision': precision,
+        'test_recall': recall
+    })
+
+
 def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
-    print(f'Read data {args.base_name}')
     datafolder = "data"
     train_file = os.path.join(datafolder, args.base_name + '_train.csv')
     valid_file = os.path.join(datafolder, args.base_name + '_valid.csv')
@@ -162,10 +163,6 @@ def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.da
                                                  batch_size=config['batch_size'],
                                                  embedding_path=config['embedding_path'],
                                                  num_workers=2)
-    for data in test_loader:
-        logging.info(data[-1])
-        break
-
     return train_loader, valid_loader, test_loader
 
 
@@ -220,12 +217,13 @@ if __name__ == "__main__":
         'lr': 1e-3,
         'scheduler_factor': 0.8,
         'scheduler_patience': 3,
-        'epoch': 50,
+        'epoch': 10,
         'pre_epoch': 10,
-        'output_dim': 50,
+        'output_dim': 128,
         'n_highway': 5,
         'mpnn_depth': 5,
         'embedding_path': "embeddings/icd2embedding.pkl",
+        'phase': args.base_name,
         'device': device,
     }
     if config['embedding_path'] == 'embeddings/icd2embedding.pkl':
@@ -234,7 +232,7 @@ if __name__ == "__main__":
         config['input_dim'] = 768
 
     train_loader, valid_loader, test_loader = get_dataloaders(config)
-    model = get_model(config)
+    model = get_model(config, pretrain=True)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
@@ -252,9 +250,12 @@ if __name__ == "__main__":
         #resume = "must",
     )
 
-    checkpoint = train(config['epoch'], model,
-                       train_loader, valid_loader, test_loader,
+    checkpoint = train(config['epoch'], model, train_loader, valid_loader,
                        optimizer, scheduler, criterion, scaler)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    test(config['epoch'], model, test_loader, criterion)
+
+    # Save model
     checkpoint_dir = 'checkpoints'
     os.makedirs(checkpoint_dir, exist_ok=True)
     torch.save(checkpoint, f'{checkpoint_dir}/{run.name}.pt')
