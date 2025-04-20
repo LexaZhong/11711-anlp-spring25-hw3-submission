@@ -130,9 +130,12 @@ if __name__ == "__main__":
     mpnn_model = MPNN(mpnn_hidden_size=50, mpnn_depth=3, device=device)
 
     # Load data
-    train_loader = csv_three_feature_2_dataloader(train_file, shuffle=True, batch_size=32)
-    valid_loader = csv_three_feature_2_dataloader(valid_file, shuffle=False, batch_size=32)
-    test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False, batch_size=32)
+    train_loader = csv_three_feature_2_dataloader(train_file, shuffle=True,
+                                                  batch_size=32, num_workers=4)
+    valid_loader = csv_three_feature_2_dataloader(valid_file, shuffle=False,
+                                                  batch_size=32, num_workers=2)
+    test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False,
+                                                 batch_size=32, num_workers=2)
 
     # Model
     icdcode2ancestor_dict = build_icdcode2ancestor_dict()

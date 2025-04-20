@@ -109,7 +109,7 @@ def trial_complete_collate_fn(x):
     return [nctid_lst, status_lst, why_stop_lst, label_vec, phase_lst, diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst]
 
 
-def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size):
+def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size, num_workers):
     with open(csvfile, 'r') as csvfile:
         rows = list(csv.reader(csvfile, delimiter=','))[1:]
     # nctid,status,why_stop,label,phase,diseases,icdcodes,drugs,smiless,criteria
@@ -120,7 +120,7 @@ def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size):
     smiles_lst = [row[8] for row in rows]
     criteria_lst = [row[9] for row in rows]
     dataset = Trial_Dataset(nctid_lst, label_lst, smiles_lst, icdcode_lst, criteria_lst)
-    data_loader = data.DataLoader(dataset, batch_size=batch_size,
+    data_loader = data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
                                   shuffle=shuffle, collate_fn=trial_collate_fn)
     return data_loader
 
