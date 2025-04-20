@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import numpy as np
@@ -82,7 +83,8 @@ def eval_one_epoch(epoch: int, model, dataloader, criterion, desc='Eval') -> tup
     return val_loss, roc_auc, pr_auc, accuracy, b_accuracy, f1, precision, recall
 
 
-def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer, criterion, scaler) -> dict:
+def train(epochs: int, model, train_loader, valid_loader, test_loader,
+          optimizer, scheduler, criterion, scaler) -> dict:
     best_val_loss = np.inf
     checkpoint = {}
 
@@ -93,6 +95,9 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
          accuracy, b_accuracy,
          f1, precision, recall) = eval_one_epoch(epoch, model, valid_loader, criterion)
 
+        scheduler.step(val_loss)
+
+        # Log epoch results
         wandb.log({
             'train_loss': train_loss,
             'val_loss': val_loss,
@@ -126,7 +131,9 @@ def train(epochs: int, model, train_loader, valid_loader, test_loader, optimizer
             best_val_loss = val_loss
             checkpoint = {
                 'epoch': epoch,
-                'model_state_dict': model.state_dict()
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
             }
             print(f"Best model at epoch {epoch} with val_loss: {val_loss:.4f}")
 
@@ -176,7 +183,7 @@ def get_model(config: dict, pretrain=True):
         admet_model = ADMET(molecule_encoder=mpnn_model,
                             highway_num=config['n_highway'],
                             device=device,
-                            epoch=3,
+                            epoch=config['pre_epoch'],
                             lr=5e-4,
                             weight_decay=0,
                             save_name='admet_')
@@ -197,7 +204,10 @@ if __name__ == "__main__":
     wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
     config ={
         'lr': 1e-3,
+        'scheduler_factor': 0.8,
+        'scheduler_patience': 2,
         'epoch': 1,
+        'pre_epoch': 10,
         'dim': 50,
         'n_highway': 2,
         'mpnn_depth': 3,
@@ -208,6 +218,10 @@ if __name__ == "__main__":
     model = get_model(config)
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
+                                                           factor=config['scheduler_factor'],
+                                                           patience=config['scheduler_patience'],
+                                                           min_lr=1e-5)
     criterion = nn.BCEWithLogitsLoss()
     scaler = torch.GradScaler(device)
 
@@ -221,7 +235,7 @@ if __name__ == "__main__":
 
     checkpoint = train(config['epoch'], model,
                        train_loader, valid_loader, test_loader,
-                       optimizer, criterion, scaler)
+                       optimizer, scheduler, criterion, scaler)
     checkpoint_dir = 'checkpoints'
     os.makedirs(checkpoint_dir, exist_ok=True)
     torch.save(checkpoint, f'{checkpoint_dir}/{run.name}.pt')
