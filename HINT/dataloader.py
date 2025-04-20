@@ -6,32 +6,59 @@
 (IV). disease lst icd-code
 
 '''
-
 import csv
 import os
+import pickle
 
+import pandas as pd
 import torch
 from protocol_encode import load_sentence_2_vec, protocol2feature
 from torch.utils import data
+from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import default_collate
 
 # sentence2vec = load_sentence_2_vec()
 
 
-class Trial_Dataset(data.Dataset):
-    def __init__(self, nctid_lst, label_lst, smiles_lst, icdcode_lst, criteria_lst):
-        self.nctid_lst = nctid_lst
-        self.label_lst = label_lst
-        self.smiles_lst = smiles_lst
-        self.icdcode_lst = icdcode_lst
-        self.criteria_lst = criteria_lst
+class Trial_Dataset(Dataset):
+    def __init__(self, file_path, embedding_path):
+
+        self.df = pd.read_csv(file_path)
+        self.nctid_col = 'nctid'
+        self.label_col = 'label'
+        self.smiles_col = 'smiless'
+        self.icdcode_col = 'icdcodes'
+        self.criteria_col = 'criteria'
+        self.embedding_col = 'embedding'
+
+        self.df[self.smiles_col] = self.df[self.smiles_col].apply(smiles_txt_to_lst)
+        self.df[self.icdcode_col] = self.df[self.icdcode_col].apply(icdcode_text_2_lst_of_lst)
+        self.load_embeddings(embedding_path)
 
     def __len__(self):
-        return len(self.nctid_lst)
+        return len(self.df)
 
     def __getitem__(self, index):
-        return self.nctid_lst[index], self.label_lst[index], self.smiles_lst[index], self.icdcode_lst[index], self.criteria_lst[index]
-    # smiles_lst[index] is list of smiles
+        return (
+            self.df[self.nctid_col][index],
+            self.df[self.label_col][index],
+            self.df[self.smiles_col][index],
+            self.df[self.icdcode_col][index],
+            self.df[self.embedding_col][index]
+        )
+
+    def load_embeddings(self, embedding_path):
+        with open(embedding_path, 'rb') as f:
+            sentence2vec = pickle.load(f)
+
+        if embedding_path == 'embeddings/icd2embedding.pkl':
+            self.df[self.embedding_col] = self.df[self.nctid_col].map(
+                lambda nctid: sentence2vec.get(nctid, torch.zeros(3072))
+            )
+        else:
+            self.df[self.embedding_col] = self.df[self.criteria_col].map(
+                lambda criteria: protocol2feature(criteria, sentence2vec)  # type: ignore
+            )
 
 
 class Trial_Dataset_Complete(Trial_Dataset):

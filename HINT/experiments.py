@@ -4,7 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 import torch
-from dataloader import (csv_three_feature_2_dataloader,
+from dataloader import (Trial_Dataset, csv_three_feature_2_dataloader,
                         generate_admet_dataloader_lst)
 from icdcode_encode import GRAM, build_icdcode2ancestor_dict
 from model import HINTModel
@@ -14,6 +14,7 @@ from sklearn.metrics import (accuracy_score, average_precision_score,
                              balanced_accuracy_score, f1_score,
                              precision_score, recall_score, roc_auc_score)
 from torch import nn
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 import wandb
@@ -147,22 +148,28 @@ def test(epoch, model, test_loader, criterion):
 
 
 def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.data.DataLoader, torch.utils.data.DataLoader]:
+
+    def collate_fn(x):
+        return [[v[i] for v in x] for i in range(len(x[0]))]
+
     datafolder = "data"
     train_file = os.path.join(datafolder, args.base_name + '_train.csv')
     valid_file = os.path.join(datafolder, args.base_name + '_valid.csv')
     test_file = os.path.join(datafolder, args.base_name + '_test.csv')
-    train_loader = csv_three_feature_2_dataloader(train_file, shuffle=True,
-                                                  batch_size=config['batch_size'],
-                                                  embedding_path=config['embedding_path'],
-                                                  num_workers=4)
-    valid_loader = csv_three_feature_2_dataloader(valid_file, shuffle=False,
-                                                  batch_size=config['batch_size'],
-                                                  embedding_path=config['embedding_path'],
-                                                  num_workers=2)
-    test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False,
-                                                 batch_size=config['batch_size'],
-                                                 embedding_path=config['embedding_path'],
-                                                 num_workers=2)
+
+    train_set = Trial_Dataset(train_file, config['embedding_path'])
+    valid_set = Trial_Dataset(valid_file, config['embedding_path'])
+    test_set = Trial_Dataset(test_file, config['embedding_path'])
+
+    train_loader = DataLoader(train_set, batch_size=config['batch_size'],
+                              num_workers=4, shuffle=True,
+                              collate_fn=collate_fn)
+    valid_loader = DataLoader(valid_set, batch_size=config['batch_size'],
+                              num_workers=2, shuffle=False,
+                              collate_fn=collate_fn)
+    test_loader = DataLoader(test_set, batch_size=config['batch_size'],
+                             num_workers=2, shuffle=False,
+                             collate_fn=collate_fn)
     return train_loader, valid_loader, test_loader
 
 
