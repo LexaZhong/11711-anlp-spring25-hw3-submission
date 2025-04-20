@@ -24,16 +24,6 @@ from openai import OpenAIError
 import time
 
 torch.manual_seed(0)
-load_dotenv()
-
-OPENAI_API_KEY = os.getenv("OPENAI_API")
-if not OPENAI_API_KEY:
-    raise ValueError("Missing OpenAI API Key")
-
-client = openai.OpenAI(
-    api_key=OPENAI_API_KEY,
-    base_url="https://cmu.litellm.ai"
-)
 
 MODEL_NAME = "text-embedding-3-large"
 TOKEN_LIMIT = 8192
@@ -248,4 +238,14 @@ class Protocol_Embedding(nn.Sequential):
         return self.output_dim
 	
 if __name__ == "__main__":
-	save_sentence_gpt_dict_pkl()
+    load_dotenv()
+
+    OPENAI_API_KEY = os.getenv("OPENAI_API")
+    if not OPENAI_API_KEY:
+        raise ValueError("Missing OpenAI API Key")
+
+    client = openai.OpenAI(
+        api_key=OPENAI_API_KEY,
+        base_url="https://cmu.litellm.ai"
+    )
+    save_sentence_gpt_dict_pkl()
