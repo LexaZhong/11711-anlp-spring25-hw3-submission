@@ -132,7 +132,7 @@ nvidia-nvtx-cu12==12.6.77
 omegaconf==2.3.0
 openai==1.75.0
 overrides==7.7.0
-packaging==21.3
+packaging
 pandas==2.2.3
 pandocfilters==1.5.1
 parso==0.8.4
