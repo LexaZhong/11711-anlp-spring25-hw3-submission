@@ -171,17 +171,22 @@ if __name__ == "__main__":
     mpnn_model = MPNN(mpnn_hidden_size=50, mpnn_depth=3, device=device)
 
     # Load data
+    EMBEDDING_PATH = "data/icd2embedding.pkl"
+    if EMBEDDING_PATH == 'data/icd2embedding.pkl':
+        input_dim = 3072
+    else:
+        input_dim = 768
     train_loader = csv_three_feature_2_dataloader(train_file, shuffle=True,
-                                                  batch_size=32, num_workers=4)
+                                                  batch_size=32, embedding_path=EMBEDDING_PATH ,num_workers=4)
     valid_loader = csv_three_feature_2_dataloader(valid_file, shuffle=False,
-                                                  batch_size=32, num_workers=2)
+                                                  batch_size=32,embedding_path=EMBEDDING_PATH , num_workers=2)
     test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False,
-                                                 batch_size=32, num_workers=2)
+                                                 batch_size=32,embedding_path=EMBEDDING_PATH , num_workers=2)
 
     # Model
     icdcode2ancestor_dict = build_icdcode2ancestor_dict()
     gram_model = GRAM(embedding_dim=50, icdcode2ancestor=icdcode2ancestor_dict, device=device)
-    protocol_model = Protocol_Embedding(output_dim=50, highway_num=3, device=device)
+    protocol_model = Protocol_Embedding(input_dim = input_dim,output_dim=50, highway_num=3, device=device)
     model = HINTModel(molecule_encoder=mpnn_model,
                       disease_encoder=gram_model,
                       protocol_encoder=protocol_model,

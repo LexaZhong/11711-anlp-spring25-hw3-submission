@@ -16,9 +16,6 @@ from protocol_encode import load_sentence_2_vec, protocol2feature
 from torch.utils import data
 from torch.utils.data.dataloader import default_collate
 from HINT.molecule_encode import smiles2mpnnfeature
-from HINT.protocolGPT_encode import load_sentence_2_vec
-
-sentence2vec = load_sentence_2_vec()
 
 
 class Trial_Dataset(data.Dataset):
@@ -88,30 +85,46 @@ def icdcode_text_2_lst_of_lst(text):
     return lst_lst
 
 
-def trial_collate_fn(x):
-	nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
-	label_vec = default_collate([int(i[1]) for i in x])  ### shape n, 
-	smiles_lst = [smiles_txt_to_lst(i[2]) for i in x]
-	icdcode_lst = [icdcode_text_2_lst_of_lst(i[3]) for i in x]
-	criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
-	return [nctid_lst, label_vec, smiles_lst, icdcode_lst, criteria_lst]
+def trial_collate_fn(sentence2vec=None, embedding_path=None):
+    def collate_fn(x):
+        nonlocal sentence2vec
+        nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
+        label_vec = default_collate([int(i[1]) for i in x])  ### shape n, 
+        smiles_lst = [smiles_txt_to_lst(i[2]) for i in x]
+        icdcode_lst = [icdcode_text_2_lst_of_lst(i[3]) for i in x]
+        if sentence2vec is None and embedding_path is not None:
+            sentence2vec = load_sentence_2_vec(embedding_path)
+        if embedding_path == 'data/icd2embedding.pkl':
+            criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
+        else:
+            criteria_lst = [protocol2feature(i[4], sentence2vec) for i in x]
+        return [nctid_lst, label_vec, smiles_lst, icdcode_lst, criteria_lst]
+    return collate_fn
 
 
-def trial_complete_collate_fn(x):
-	nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
-	status_lst = [i[1] for i in x]
-	why_stop_lst = [i[2] for i in x]
-	label_vec = default_collate([int(i[3]) for i in x])  ### shape n, 
-	phase_lst = [i[4] for i in x]
-	diseases_lst = [i[5] for i in x]
-	icdcode_lst = [icdcode_text_2_lst_of_lst(i[6]) for i in x]
-	drugs_lst = [i[7] for i in x]
-	smiles_lst = [smiles_txt_to_lst(i[8]) for i in x]
-	criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
-	return [nctid_lst, status_lst, why_stop_lst, label_vec, phase_lst, diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst]
+def trial_complete_collate_fn(sentence2vec=None, embedding_path=None):
+    def collate_fn(x):
+        nonlocal sentence2vec
+        nctid_lst = [i[0] for i in x]     ### ['NCT00604461', ..., 'NCT00788957'] 
+        status_lst = [i[1] for i in x]
+        why_stop_lst = [i[2] for i in x]
+        label_vec = default_collate([int(i[3]) for i in x])  ### shape n, 
+        phase_lst = [i[4] for i in x]
+        diseases_lst = [i[5] for i in x]
+        icdcode_lst = [icdcode_text_2_lst_of_lst(i[6]) for i in x]
+        drugs_lst = [i[7] for i in x]
+        smiles_lst = [smiles_txt_to_lst(i[8]) for i in x]
+        if sentence2vec is None and embedding_path is not None:
+            sentence2vec = load_sentence_2_vec(embedding_path)
+        if embedding_path == 'data/icd2embedding.pkl':
+            criteria_lst = [sentence2vec[str(nctid)] for nctid in nctid_lst]
+        else:
+            criteria_lst = [protocol2feature(i[9], sentence2vec) for i in x]
+        return [nctid_lst, status_lst, why_stop_lst, label_vec, phase_lst, diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst]
+    return collate_fn
 
 
-def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size, num_workers):
+def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size,embedding_path, num_workers):
     with open(csvfile, 'r') as csvfile:
         rows = list(csv.reader(csvfile, delimiter=','))[1:]
     # nctid,status,why_stop,label,phase,diseases,icdcodes,drugs,smiless,criteria
@@ -122,12 +135,13 @@ def csv_three_feature_2_dataloader(csvfile, shuffle, batch_size, num_workers):
     smiles_lst = [row[8] for row in rows]
     criteria_lst = [row[9] for row in rows]
     dataset = Trial_Dataset(nctid_lst, label_lst, smiles_lst, icdcode_lst, criteria_lst)
+    sentence2vec = load_sentence_2_vec(embedding_path)
     data_loader = data.DataLoader(dataset, batch_size=batch_size, num_workers=num_workers,
-                                  shuffle=shuffle, collate_fn=trial_collate_fn)
+                                  shuffle=shuffle, collate_fn=trial_collate_fn(embedding_path=embedding_path))
     return data_loader
 
 
-def csv_three_feature_2_complete_dataloader(csvfile, shuffle, batch_size):
+def csv_three_feature_2_complete_dataloader(csvfile, shuffle, batch_size,embedding_path):
     with open(csvfile, 'r') as csvfile:
         rows = list(csv.reader(csvfile, delimiter=','))[1:]
     nctid_lst = [row[0] for row in rows]
@@ -144,7 +158,7 @@ def csv_three_feature_2_complete_dataloader(csvfile, shuffle, batch_size):
     dataset = Trial_Dataset_Complete(nctid_lst, status_lst, why_stop_lst, label_lst, phase_lst,
                                      diseases_lst, icdcode_lst, drugs_lst, smiles_lst, criteria_lst)
     data_loader = data.DataLoader(dataset, batch_size=batch_size,
-                                  shuffle=shuffle, collate_fn=trial_complete_collate_fn)
+                                  shuffle=shuffle, collate_fn=trial_complete_collate_fn(embedding_path=embedding_path))
     return data_loader
 
 

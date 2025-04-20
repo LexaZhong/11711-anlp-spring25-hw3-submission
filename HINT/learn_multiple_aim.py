@@ -12,7 +12,7 @@ sys.path.append('.')
 from HINT.dataloader import csv_three_feature_2_dataloader, generate_admet_dataloader_lst, csv_three_feature_2_complete_dataloader
 from HINT.molecule_encode import MPNN, ADMET 
 from HINT.icdcode_encode import GRAM, build_icdcode2ancestor_dict
-from HINT.protocalGPT_encode import Protocol_Embedding
+from HINT.protocol_encode import Protocol_Embedding
 from HINT.model import HINTModel_multi
 device = torch.device("cpu")
 if not os.path.exists("figure"):
@@ -24,6 +24,11 @@ if not os.path.exists("figure"):
 ## 2. data
 base_name = 'phase_II' 
 base_name = "indication"
+EMBEDDING_PATH = "data/icd2embedding.pkl"
+if EMBEDDING_PATH == 'data/icd2embedding.pkl':
+    input_dim = 3072
+else:
+	input_dim = 768
 # base_name = 'phase_III'
 # base_name = "toy" 
 datafolder = "auxiliary_data"
@@ -60,16 +65,16 @@ else:
 
 
 ## 4. dataloader, model build, train, inference
-train_loader = csv_three_feature_2_dataloader(train_file, shuffle=True, batch_size=32) 
-valid_loader = csv_three_feature_2_dataloader(valid_file, shuffle=False, batch_size=32) 
-test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False, batch_size=32) 
+train_loader = csv_three_feature_2_dataloader(train_file, shuffle=True, batch_size=32,embedding_path=EMBEDDING_PATH) 
+valid_loader = csv_three_feature_2_dataloader(valid_file, shuffle=False, batch_size=32,embedding_path=EMBEDDING_PATH) 
+test_loader = csv_three_feature_2_dataloader(test_file, shuffle=False, batch_size=32,embedding_path=EMBEDDING_PATH) 
 
 
 
 
 icdcode2ancestor_dict = build_icdcode2ancestor_dict()
 gram_model = GRAM(embedding_dim = 50, icdcode2ancestor = icdcode2ancestor_dict, device = device)
-protocol_model = Protocol_Embedding(output_dim = 50, highway_num=3, device = device)
+protocol_model = Protocol_Embedding(input_dim= input_dim, output_dim = 50, highway_num=3, device = device)
 
 
 
