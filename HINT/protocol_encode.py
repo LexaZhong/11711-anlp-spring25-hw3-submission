@@ -219,7 +219,7 @@ class Protocol_Embedding(nn.Sequential):
         feature_vec = torch.mean(feature, 0)
         feature_vec = feature_vec.view(1, -1)
         return feature_vec
-    def forward_single_2(self, feature):
+    def forward_single_2(self, inclusion_feature, exclusion_feature):
         inclusion_feature = inclusion_feature.to(self.device)
         exclusion_feature = exclusion_feature.to(self.device)
         inclusion_vec = torch.mean(inclusion_feature, 0)
@@ -230,7 +230,7 @@ class Protocol_Embedding(nn.Sequential):
 
     def forward(self, feature):
         if self.input_dim == 768:
-            result = [self.forward_single2(in_mat, ex_mat) for in_mat, ex_mat in feature]
+            result = [self.forward_single_2(in_mat, ex_mat) for in_mat, ex_mat in feature]
             inclusion_mat = [in_vec for in_vec, ex_vec in result]
             inclusion_mat = torch.cat(inclusion_mat, 0)  #### 32,768
             exclusion_mat = [ex_vec for in_vec, ex_vec in result]
