@@ -300,4 +300,4 @@ if __name__ == "__main__":
     }
 
     sweep_id = wandb.sweep(sweep_config, project="11711-hw4-ablation")
-    wandb.agent(sweep_id, sweep_train, count=1)
+    wandb.agent(sweep_id, sweep_train, count=10)
