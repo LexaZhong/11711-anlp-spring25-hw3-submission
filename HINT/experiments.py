@@ -14,6 +14,7 @@ from sklearn.metrics import (accuracy_score, average_precision_score,
                              balanced_accuracy_score, f1_score,
                              precision_score, recall_score, roc_auc_score)
 from torch import nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 from torch.utils.data import DataLoader, Dataset
 from torch.utils.data.dataloader import default_collate
 from tqdm import tqdm
@@ -97,7 +98,10 @@ def train(epochs: int, model, train_loader, valid_loader,
          accuracy, b_accuracy,
          f1, precision, recall) = eval_one_epoch(epoch, model, valid_loader, criterion)
 
-        scheduler.step(val_loss)
+        if scheduler.__class__ == ReduceLROnPlateau:
+            scheduler.step(val_loss)
+        else:
+            scheduler.step()
 
         # Log epoch results
         wandb.log({
@@ -179,7 +183,7 @@ def get_dataloaders(config) -> tuple[torch.utils.data.DataLoader, torch.utils.da
     return train_loader, valid_loader, test_loader
 
 
-def get_model(config: dict, pretrain=True):
+def get_model(config, pretrain=True):
     icdcode2ancestor_dict = build_icdcode2ancestor_dict()
     mpnn_model = MPNN(mpnn_hidden_size=config['output_dim'],
                       mpnn_depth=config['mpnn_depth'],
@@ -221,6 +225,17 @@ def get_model(config: dict, pretrain=True):
     return model
 
 
+def get_scheduler(optimizer, config):
+    if config['scheduler'] == 'StepLR':
+        scheduler = StepLR(optimizer, step_size=3, gamma=config['scheduler_gamma'])
+    else:
+        scheduler = ReduceLROnPlateau(optimizer, mode='min',
+                                      factor=config['scheduler_factor'],
+                                      patience=config['scheduler_patience'],
+                                      min_lr=1e-5)
+    return scheduler
+
+
 def sweep_train(config=None):
     with wandb.init(config=config) as run:
         config = wandb.config
@@ -234,10 +249,7 @@ def sweep_train(config=None):
         # Define models
         model = get_model(config, pretrain=True)
         optimizer = torch.optim.AdamW(model.parameters(), lr=config['lr'])
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
-                                                               factor=config['scheduler_factor'],
-                                                               patience=config['scheduler_patience'],
-                                                               min_lr=1e-5)
+        scheduler = get_scheduler(optimizer, config)
         criterion = nn.BCEWithLogitsLoss()
         scaler = torch.GradScaler(device)
 
@@ -283,6 +295,12 @@ if __name__ == "__main__":
                 'distribution': 'int_uniform',
                 'min': 10,
                 'max': 30,
+            },
+            'scheduler': {
+                'values': ['StepLR', 'ReduceLROnPlateau']
+            },
+            'scheduler_gamma': {
+                'values': [0.5, 0.8]
             },
             'scheduler_factor': {
                 'values': [0.3, 0.5, 0.7]
