@@ -126,7 +126,7 @@ def train(epochs: int, model, train_loader, valid_loader,
 
         # End training if no more improvement
         if (val_loss > best_val_loss and
-                epoch - checkpoint.get('epoch', 0) > 5):
+                epoch - checkpoint.get('epoch', 0) >= 5):
             print(f"Early stopping at epoch {epoch} with val_loss: {val_loss:.4f}")
             break
 
