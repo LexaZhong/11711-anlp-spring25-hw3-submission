@@ -21,10 +21,6 @@ from tqdm import tqdm
 
 import wandb
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--base_name', type=str, required=True)
-args = parser.parse_args()
-
 device = ('cuda' if torch.cuda.is_available() else
           'mps' if torch.backends.mps.is_available() else
           'cpu')
@@ -266,6 +262,10 @@ def sweep_train(config=None):
 
 
 if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--base_name', type=str, required=True)
+    args = parser.parse_args()
 
     wandb.login(key="c3a06f318f071ae7444755a93fa8a5cbff1f6a86")
 
