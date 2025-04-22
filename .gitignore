@@ -9,3 +9,5 @@ embeddings
 .vscode
 
 *.log
+
+draft*
